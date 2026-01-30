@@ -3,201 +3,119 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover" />
-    <title>AR Navigator Pro</title>
+    <title>AR Quick Response</title>
     <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
     <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar-nft.js"></script>
     
     <style>
-      :root {
-        --safe-top: env(safe-area-inset-top);
-        --safe-bottom: env(safe-area-inset-bottom);
-      }
+      :root { --safe-top: env(safe-area-inset-top); --safe-bottom: env(safe-area-inset-bottom); }
+      body { margin: 0; overflow: hidden; font-family: -apple-system, sans-serif; background: #000; }
+      
+      .ui-header { position: fixed; top: calc(10px + var(--safe-top)); left: 50%; transform: translateX(-50%); z-index: 1000; width: 90%; }
+      .search-box { display: flex; background: rgba(0,0,0,0.8); backdrop-filter: blur(10px); padding: 8px; border-radius: 18px; border: 1px solid rgba(255,255,255,0.2); }
+      input { flex: 1; background: transparent; border: none; color: white; padding: 12px; font-size: 17px; outline: none; }
+      button { background: #007AFF; color: white; border: none; border-radius: 12px; padding: 0 20px; font-weight: bold; }
 
-      body { 
-        margin: 0; 
-        overflow: hidden; 
-        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica; 
-        background-color: #000;
+      .ui-footer { position: fixed; bottom: calc(40px + var(--safe-bottom)); left: 50%; transform: translateX(-50%); z-index: 1000; text-align: center; }
+      /* Flecha con aceleración por hardware */
+      #arrow-svg { 
+        width: 120px; height: 120px; 
+        will-change: transform; 
+        transition: transform 0.05s linear; /* Transición ultra rápida */
       }
-
-      /* Panel de búsqueda optimizado para Notch */
-      .ui-header {
-        position: fixed;
-        top: calc(10px + var(--safe-top));
-        left: 50%;
-        transform: translateX(-50%);
-        z-index: 1000;
-        width: 90%;
-        max-width: 500px;
-      }
-
-      .search-box {
-        display: flex;
-        background: rgba(20, 20, 20, 0.85);
-        backdrop-filter: blur(10px);
-        padding: 8px;
-        border-radius: 18px;
-        border: 1px solid rgba(255,255,255,0.2);
-        box-shadow: 0 8px 32px rgba(0,0,0,0.3);
-      }
-
-      input {
-        flex: 1;
-        background: transparent;
-        border: none;
-        color: white;
-        padding: 12px 15px;
-        font-size: 17px; /* Evita zoom automático en iOS */
-        outline: none;
-      }
-
-      button {
-        background: #007AFF;
-        color: white;
-        border: none;
-        border-radius: 12px;
-        padding: 0 20px;
-        font-weight: 600;
-        letter-spacing: -0.5px;
-        transition: background 0.2s;
-      }
-
-      /* Guía visual inferior optimizada */
-      .ui-footer {
-        position: fixed;
-        bottom: calc(30px + var(--safe-bottom));
-        left: 50%;
-        transform: translateX(-50%);
-        z-index: 1000;
-        text-align: center;
-        pointer-events: none;
-      }
-
-      #arrow-svg {
-        width: 110px;
-        height: 110px;
-        filter: drop-shadow(0 0 15px rgba(0,255,0,0.4));
-        transition: transform 0.1s linear;
-      }
-
-      .info-pill {
-        display: inline-block;
-        margin-top: 15px;
-        background: rgba(0, 0, 0, 0.7);
-        color: #00FF00;
-        padding: 8px 20px;
-        border-radius: 25px;
-        font-size: 15px;
-        font-weight: 700;
-        text-transform: uppercase;
-        letter-spacing: 1px;
-        border: 1px solid rgba(0,255,0,0.3);
-      }
+      .info-pill { margin-top: 15px; background: rgba(0,0,0,0.7); color: #00FF00; padding: 8px 20px; border-radius: 20px; font-weight: bold; font-size: 14px; }
     </style>
   </head>
 
   <body>
     <div class="ui-header">
       <div class="search-box">
-        <input type="text" id="placeName" placeholder="Buscar lugar (ej. Gran Vía)..." spellcheck="false">
+        <input type="text" id="placeName" placeholder="Buscar lugar...">
         <button onclick="buscarLugar()">IR</button>
       </div>
     </div>
 
     <div class="ui-footer" id="guideUI" style="visibility: hidden;">
       <svg id="arrow-svg" viewBox="0 0 100 100">
-        <defs>
-          <linearGradient id="grad" x1="0%" y1="0%" x2="0%" y2="100%">
-            <stop offset="0%" style="stop-color:#00ff00;stop-opacity:1" />
-            <stop offset="100%" style="stop-color:#008800;stop-opacity:1" />
-          </linearGradient>
-        </defs>
-        <polygon points="50,5 90,90 50,70 10,90" fill="url(#grad)" />
+        <polygon points="50,5 90,90 50,75 10,90" fill="#00FF00" />
       </svg>
-      <br>
       <div id="dist-text" class="info-pill">Calculando...</div>
     </div>
 
-    <a-scene
-      vr-mode-ui="enabled: false"
-      embedded
-      arjs="sourceType: webcam; debugUIEnabled: false; videoTexture: true; trackingMethod: best;"
-    >
+    <a-scene vr-mode-ui="enabled: false" embedded arjs="sourceType: webcam; debugUIEnabled: false; videoTexture: true;">
       <a-entity id="target-anchor">
-        <a-sphere radius="5" color="red" gps-entity-place="latitude: 0; longitude: 0;"></a-sphere>
-        <a-text id="marker-label" value="" look-at="[gps-camera]" scale="60 60 60" position="0 10 0" align="center"></a-text>
+        <a-text id="marker-label" value="" look-at="[gps-camera]" scale="50 50 50" align="center" color="yellow"></a-text>
       </a-entity>
-      <a-camera gps-camera rotation-reader></a-camera>
+      <a-camera gps-camera="simulateAltitude: 1.6" rotation-reader></a-camera>
     </a-scene>
 
     <script>
       let destLat, destLon;
+      let currentBearing = 0; // Ángulo hacia el destino relativo al Norte
       const arrow = document.getElementById('arrow-svg');
       const distText = document.getElementById('dist-text');
-      const guideUI = document.getElementById('guideUI');
 
       async function buscarLugar() {
         const query = document.getElementById('placeName').value;
-        if (!query) return;
+        const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`);
+        const data = await res.json();
 
-        try {
-          const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`);
-          const data = await res.json();
-
-          if (data.length > 0) {
-            destLat = parseFloat(data[0].lat);
-            destLon = parseFloat(data[0].lon);
-            
-            document.getElementById('target-anchor').children[0].setAttribute('gps-entity-place', `latitude: ${destLat}; longitude: ${destLon};`);
-            document.getElementById('marker-label').setAttribute('value', data[0].display_name.split(',')[0]);
-            
-            guideUI.style.visibility = 'visible';
-            // Solicitar permisos explícitos para sensores en iOS
-            solicitarPermisosiOS();
-          }
-        } catch (e) { console.error(e); }
+        if (data.length > 0) {
+          destLat = parseFloat(data[0].lat);
+          destLon = parseFloat(data[0].lon);
+          
+          document.getElementById('marker-label').setAttribute('value', data[0].display_name.split(',')[0]);
+          document.getElementById('guideUI').style.visibility = 'visible';
+          
+          solicitarPermisosiOS();
+          actualizarPosicionGPS(); // Carga inicial
+        }
       }
 
       function solicitarPermisosiOS() {
         if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-          DeviceOrientationEvent.requestPermission()
-            .then(response => {
-              if (response == 'granted') {
-                window.addEventListener('deviceorientation', updateCompass, true);
-              }
-            }).catch(console.error);
+          DeviceOrientationEvent.requestPermission().then(state => {
+            if (state === 'granted') window.addEventListener('deviceorientation', handleRotation, true);
+          });
         } else {
-          window.addEventListener('deviceorientation', updateCompass, true);
+          window.addEventListener('deviceorientation', handleRotation, true);
         }
       }
 
-      function updateCompass(event) {
+      // 1. ACTUALIZACIÓN DE BRÚJULA (60fps - Instantánea)
+      function handleRotation(event) {
         if (!destLat) return;
 
-        let compass = event.webkitCompassHeading || (360 - event.alpha);
+        //webkitCompassHeading es el más preciso y rápido en iPhone
+        let heading = event.webkitCompassHeading || (360 - event.alpha);
         
-        navigator.geolocation.getCurrentPosition((pos) => {
+        // Calculamos la rotación de la flecha
+        // (Ángulo al destino - Hacia donde apunta el móvil)
+        let arrowRotation = currentBearing - heading;
+        
+        // Aplicamos la transformación usando requestAnimationFrame para máxima fluidez
+        requestAnimationFrame(() => {
+          arrow.style.transform = `rotate(${arrowRotation}deg)`;
+        });
+      }
+
+      // 2. ACTUALIZACIÓN DE GPS (Segundo plano - Lenta pero necesaria)
+      function actualizarPosicionGPS() {
+        navigator.geolocation.watchPosition((pos) => {
           const uLat = pos.coords.latitude;
           const uLon = pos.coords.longitude;
 
-          // Cálculo del ángulo (Bearing)
+          // Recalcular el rumbo (Bearing) solo cuando el GPS se mueve
           const y = Math.sin(toRadians(destLon - uLon)) * Math.cos(toRadians(destLat));
           const x = Math.cos(toRadians(uLat)) * Math.sin(toRadians(destLat)) -
                     Math.sin(toRadians(uLat)) * Math.cos(toRadians(destLat)) * Math.cos(toRadians(destLon - uLon));
-          let bearing = (toDegrees(Math.atan2(y, x)) + 360) % 360;
+          
+          currentBearing = (toDegrees(Math.atan2(y, x)) + 360) % 360;
 
-          // Rotación de flecha compensando la vista del usuario
-          const rotation = bearing - compass;
-          arrow.style.transform = `rotate(${rotation}deg)`;
-
-          // Distancia Haversine
+          // Actualizar texto de distancia
           const d = calcDist(uLat, uLon, destLat, destLon);
           distText.innerText = d > 1 ? `${d.toFixed(1)} km` : `${(d*1000).toFixed(0)} m`;
-          
-          // Feedback visual: Verde si estás cerca del ángulo correcto
-          const diff = Math.abs((rotation + 180) % 360 - 180);
-          arrow.style.filter = diff < 20 ? 'drop-shadow(0 0 20px #00FF00)' : 'drop-shadow(0 0 10px rgba(0,0,0,0.5))';
-        });
+        }, null, { enableHighAccuracy: true });
       }
 
       function toRadians(d) { return d * Math.PI / 180; }
