@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover" />
-    <title>AR Navigator Pro - iPhone 13/14</title>
+    <title>AR Geo Navigator - iPhone Optimized</title>
     <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
     <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar-nft.js"></script>
     
@@ -16,29 +16,32 @@
       body { 
         margin: 0; 
         overflow: hidden; 
-        font-family: -apple-system, BlinkMacSystemFont, sans-serif; 
+        font-family: -apple-system, system-ui, sans-serif; 
         background-color: #000; 
       }
       
-      /* Buscador Superior optimizado para Notch */
-      .ui-header { 
+      /* Buscador Superior Pegado */
+      .ui-top { 
         position: fixed; 
-        top: calc(15px + var(--safe-top)); 
-        left: 50%; 
-        transform: translateX(-50%); 
+        top: 0; 
+        left: 0;
+        right: 0;
         z-index: 1000; 
-        width: 90%; 
-        max-width: 500px;
+        background: rgba(0, 0, 0, 0.6);
+        backdrop-filter: blur(12px);
+        padding-top: var(--safe-top);
+        padding-bottom: 10px;
+        display: flex;
+        justify-content: center;
+        border-bottom: 1px solid rgba(255,255,255,0.1);
       }
       
       .search-box { 
         display: flex; 
-        background: rgba(0, 0, 0, 0.75); 
-        backdrop-filter: blur(15px); 
-        padding: 8px; 
-        border-radius: 18px; 
-        border: 1px solid rgba(255,255,255,0.2);
-        box-shadow: 0 8px 32px rgba(0,0,0,0.5);
+        width: 92%;
+        background: rgba(255, 255, 255, 0.1); 
+        padding: 5px; 
+        border-radius: 14px; 
       }
       
       input { 
@@ -46,8 +49,8 @@
         background: transparent; 
         border: none; 
         color: white; 
-        padding: 12px; 
-        font-size: 17px; /* Evita el zoom automático en iOS */
+        padding: 10px; 
+        font-size: 17px; 
         outline: none; 
       }
 
@@ -55,70 +58,103 @@
         background: #007AFF; 
         color: white; 
         border: none; 
-        border-radius: 12px; 
-        padding: 0 20px; 
-        font-weight: bold; 
+        border-radius: 10px; 
+        padding: 0 15px; 
+        font-weight: 600; 
       }
 
-      /* Contenedor de la Flecha Reactiva */
-      .ui-footer { 
-        position: fixed; 
-        bottom: calc(45px + var(--safe-bottom)); 
-        left: 50%; 
-        transform: translateX(-50%); 
-        z-index: 1000; 
-        text-align: center; 
-        display: flex;
-        flex-direction: column;
-        align-items: center;
+      /* Guía Central (Flecha) */
+      .ui-middle {
+        position: fixed;
+        bottom: calc(120px + var(--safe-bottom));
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 900;
         pointer-events: none;
       }
 
       #arrow-svg { 
-        width: 120px; 
-        height: 120px; 
-        will-change: transform, filter; 
-        transition: transform 0.05s linear, filter 0.2s ease; 
+        width: 100px; 
+        height: 100px; 
+        will-change: transform;
+        transition: transform 0.05s linear;
       }
 
-      .info-pill { 
-        margin-top: 15px; 
-        background: rgba(0, 0, 0, 0.8); 
-        color: white; 
-        padding: 8px 20px; 
-        border-radius: 20px; 
-        font-weight: bold; 
-        font-size: 15px; 
-        border: 1px solid rgba(255,255,255,0.1);
+      /* Panel de Coordenadas Inferior */
+      .ui-bottom {
+        position: fixed;
+        bottom: 0;
+        left: 0;
+        right: 0;
+        z-index: 1000;
+        background: rgba(0, 0, 0, 0.7);
+        backdrop-filter: blur(15px);
+        padding-bottom: calc(10px + var(--safe-bottom));
+        padding-top: 10px;
+        border-top: 1px solid rgba(255,255,255,0.1);
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 5px;
+      }
+
+      .coord-row {
+        width: 90%;
+        display: flex;
+        justify-content: space-between;
+        font-size: 11px;
+        color: #aaa;
+        letter-spacing: 0.5px;
+      }
+
+      .coord-val { color: #00D2FF; font-family: monospace; font-size: 12px; }
+      .dist-badge {
+        background: #34C759;
+        color: white;
+        padding: 4px 12px;
+        border-radius: 10px;
+        font-weight: bold;
+        font-size: 14px;
+        margin-top: 5px;
       }
     </style>
   </head>
 
   <body>
-    <div class="ui-header">
+    <div class="ui-top">
       <div class="search-box">
         <input type="text" id="placeName" placeholder="Buscar lugar..." spellcheck="false">
         <button onclick="buscarLugar()">IR</button>
       </div>
     </div>
 
-    <div class="ui-footer" id="guideUI" style="visibility: hidden;">
+    <div class="ui-middle" id="guideUI" style="visibility: hidden;">
       <svg id="arrow-svg" viewBox="0 0 100 100">
-        <path id="arrow-path" d="M50 5 L95 95 L50 75 L5 95 Z" fill="#888888" stroke="white" stroke-width="2"/>
+        <path id="arrow-path" d="M50 5 L95 95 L50 75 L5 95 Z" fill="#888" stroke="white" stroke-width="2"/>
       </svg>
-      <div id="dist-text" class="info-pill">Calculando...</div>
+    </div>
+
+    <div class="ui-bottom">
+      <div class="coord-row">
+        <span>MI UBICACIÓN:</span>
+        <span id="my-coords" class="coord-val">ESPERANDO GPS...</span>
+      </div>
+      <div class="coord-row">
+        <span>DESTINO:</span>
+        <span id="dest-coords" class="coord-val">---</span>
+      </div>
+      <div id="dist-text" class="dist-badge" style="display:none;">0 m</div>
     </div>
 
     <a-scene
       vr-mode-ui="enabled: false"
       embedded
-      arjs="sourceType: webcam; debugUIEnabled: false; videoTexture: true; trackingMethod: best;"
+      arjs="sourceType: webcam; debugUIEnabled: false; videoTexture: true;"
     >
       <a-entity id="target-anchor">
-        <a-sphere radius="15" color="#00D2FF" opacity="0.5" gps-entity-place="latitude: 0; longitude: 0;"></a-sphere>
-        <a-text id="marker-label" value="" look-at="[gps-camera]" scale="70 70 70" position="0 30 0" align="center" color="#00D2FF"></a-text>
+        <a-sphere radius="10" color="#00D2FF" opacity="0.6" gps-entity-place="latitude: 0; longitude: 0;"></a-sphere>
+        <a-text id="marker-label" value="" look-at="[gps-camera]" scale="60 60 60" position="0 20 0" align="center"></a-text>
       </a-entity>
-      
       <a-camera gps-camera rotation-reader></a-camera>
     </a-scene>
 
@@ -126,8 +162,9 @@
       let destLat, destLon, currentBearing = 0;
       const arrow = document.getElementById('arrow-svg');
       const arrowPath = document.getElementById('arrow-path');
-      const distText = document.getElementById('dist-text');
-      const guideUI = document.getElementById('guideUI');
+      const myCoordsText = document.getElementById('my-coords');
+      const destCoordsText = document.getElementById('dest-coords');
+      const distBadge = document.getElementById('dist-text');
 
       async function buscarLugar() {
         const query = document.getElementById('placeName').value;
@@ -141,83 +178,66 @@
             destLat = parseFloat(data[0].lat);
             destLon = parseFloat(data[0].lon);
             
-            // Actualizar marcador en el mundo 3D
+            destCoordsText.innerText = `${destLat.toFixed(5)}, ${destLon.toFixed(5)}`;
             document.getElementById('target-anchor').children[0].setAttribute('gps-entity-place', `latitude: ${destLat}; longitude: ${destLon};`);
-            document.getElementById('marker-label').setAttribute('value', data[0].display_name.split(',')[0].toUpperCase());
+            document.getElementById('marker-label').setAttribute('value', data[0].display_name.split(',')[0]);
             
-            guideUI.style.visibility = 'visible';
+            document.getElementById('guideUI').style.visibility = 'visible';
+            distBadge.style.display = 'block';
             solicitarPermisos();
           }
-        } catch (e) {
-          console.error("Error de búsqueda", e);
-        }
+        } catch (e) { console.error(e); }
       }
 
       function solicitarPermisos() {
         if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-          DeviceOrientationEvent.requestPermission().then(state => {
-            if (state === 'granted') window.addEventListener('deviceorientation', updateUI, true);
+          DeviceOrientationEvent.requestPermission().then(s => {
+            if(s === 'granted') window.addEventListener('deviceorientation', updateUI, true);
           });
         } else {
           window.addEventListener('deviceorientation', updateUI, true);
         }
-        iniciarSeguimientoGPS();
+        iniciarGPS();
       }
 
       function updateUI(e) {
         if (!destLat) return;
-
-        // Obtener el norte magnético de iPhone
         let heading = e.webkitCompassHeading || (360 - e.alpha);
         let diff = (currentBearing - heading + 360) % 360;
         let rotation = diff > 180 ? diff - 360 : diff;
 
         const error = Math.abs(rotation);
-        let scale = 1;
-        let color = "#888888"; // Gris inicial
+        let scale = 1, color = "#888";
 
-        // Lógica de color y escala reactiva
-        if (error < 30 && error >= 10) {
-          scale = 1.15;
-          color = "#34C759"; // Verde (Cerca)
-          arrow.style.filter = "drop-shadow(0 0 10px #34C759)";
-        } 
-        else if (error < 10) {
-          scale = 1.35;
-          color = "#00D2FF"; // Azul Eléctrico (En la mira)
-          arrow.style.filter = "drop-shadow(0 0 20px #00D2FF)";
-          if (error < 5) window.navigator.vibrate(20); 
-        } 
-        else {
-          scale = 1;
-          color = (error > 150) ? "#444444" : "#888888"; // Más oscuro si está a la espalda
-          arrow.style.filter = "none";
+        if (error < 30) {
+          scale = error < 10 ? 1.3 : 1.1;
+          color = error < 10 ? "#00D2FF" : "#34C759";
+          if (error < 5) window.navigator.vibrate(15);
         }
 
-        // Aplicar transformación a la flecha
         arrow.style.transform = `rotate(${rotation}deg) scale(${scale})`;
         arrowPath.setAttribute('fill', color);
       }
 
-      function iniciarSeguimientoGPS() {
+      function iniciarGPS() {
         navigator.geolocation.watchPosition((pos) => {
           const uLat = pos.coords.latitude;
           const uLon = pos.coords.longitude;
-
-          // Cálculo del rumbo (Bearing)
-          const y = Math.sin(toRadians(destLon - uLon)) * Math.cos(toRadians(destLat));
-          const x = Math.cos(toRadians(uLat)) * Math.sin(toRadians(destLat)) -
-                    Math.sin(toRadians(uLat)) * Math.cos(toRadians(destLat)) * Math.cos(toRadians(destLon - uLon));
           
-          currentBearing = (toDegrees(Math.atan2(y, x)) + 360) % 360;
+          myCoordsText.innerText = `${uLat.toFixed(5)}, ${uLon.toFixed(5)}`;
 
-          // Distancia
-          const d = calcDist(uLat, uLon, destLat, destLon);
-          distText.innerText = d > 1 ? `${d.toFixed(1)} KM` : `${(d*1000).toFixed(0)} METROS`;
+          if(destLat) {
+            const y = Math.sin(toRadians(destLon - uLon)) * Math.cos(toRadians(destLat));
+            const x = Math.cos(toRadians(uLat)) * Math.sin(toRadians(destLat)) -
+                      Math.sin(toRadians(uLat)) * Math.cos(toRadians(destLat)) * Math.cos(toRadians(destLon - uLon));
+            currentBearing = (toDegrees(Math.atan2(y, x)) + 360) % 360;
+            
+            const d = calcDist(uLat, uLon, destLat, destLon);
+            distBadge.innerText = d > 1 ? `${d.toFixed(1)} KM` : `${(d*1000).toFixed(0)} M`;
+          }
         }, null, { enableHighAccuracy: true });
       }
 
-      // Funciones matemáticas
       function toRadians(d) { return d * Math.PI / 180; }
       function toDegrees(r) { return r * 180 / Math.PI; }
       function calcDist(l1, n1, l2, n2) {
