@@ -11,6 +11,10 @@
       :root { --ios-blue: #007AFF; --ios-green: #34c759; --target-gold: #FFD700; }
       body { margin: 0; overflow: hidden; font-family: -apple-system, sans-serif; background: #000; }
 
+      /* OCULTAR EL MENSAJE DE AR.JS */
+      .a-canvas { z-index: 1; }
+      .arjs-loader { display: none !important; }
+
       .ui-header {
         position: fixed; top: 0; left: 0; width: 100%;
         background: rgba(0,0,0,0.8); backdrop-filter: blur(20px);
@@ -20,30 +24,26 @@
       }
 
       .input-container { display: flex; gap: 10px; flex-direction: column; }
-      input { padding: 12px; border-radius: 10px; border: none; font-size: 16px; background: rgba(255,255,255,0.15); color: white; }
+      input { padding: 12px; border-radius: 10px; border: none; font-size: 16px; background: rgba(255,255,255,0.15); color: white; -webkit-appearance: none; }
       
       #main-button { 
         padding: 14px; border-radius: 10px; background: var(--ios-blue); 
         color: white; border: none; font-weight: 800; font-size: 18px;
-        letter-spacing: 1px; transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+        transition: all 0.3s ease;
       }
 
       .active-mode { background: #1a1a1a !important; color: var(--ios-green) !important; border: 1px solid var(--ios-green); }
 
       #guide-arrow {
-        position: fixed; top: 55%; left: 50%;
-        transform: translate(-50%, -50%);
-        width: 90px; height: 90px;
-        z-index: 500; display: none;
-        transition: transform 0.05s linear;
+        position: fixed; top: 55%; left: 50%; transform: translate(-50%, -50%);
+        width: 90px; height: 90px; z-index: 500; display: none;
       }
 
       .data-footer {
         position: fixed; bottom: 0; left: 0; width: 100%;
         background: rgba(0,0,0,0.8); color: white;
         padding: 10px 20px env(safe-area-inset-bottom) 20px;
-        font-size: 11px; z-index: 1000; box-sizing: border-box;
-        display: flex; justify-content: space-between;
+        font-size: 11px; z-index: 1000; display: flex; justify-content: space-between;
       }
 
       #status-text { text-align: center; margin-top: 10px; color: #aaa; font-size: 12px; text-transform: uppercase; }
@@ -54,9 +54,9 @@
     <div class="ui-header">
       <div class="input-container">
         <input type="text" id="search-input" placeholder="Lugar o Coordenadas...">
-        <button id="main-button">INICIAR RASTREO PRECISO</button>
+        <button id="main-button">INICIAR RASTREO</button>
       </div>
-      <div id="status-text">Sistema listo - iPhone 12 Optimized</div>
+      <div id="status-text">Toca el botón para activar cámara y GPS</div>
     </div>
 
     <div id="guide-arrow">
@@ -66,19 +66,17 @@
     </div>
 
     <div class="data-footer">
-      <div><b>GPS:</b> <span id="my-coords">Buscando...</span></div>
+      <div><b>GPS:</b> <span id="my-coords">ESPERANDO...</span></div>
       <div style="text-align: right;"><b>DST:</b> <span id="dest-coords">---</span></div>
     </div>
 
     <a-scene embedded vr-mode-ui="enabled: false" 
              arjs="sourceType: webcam; debugUIEnabled: false; videoTexture: true;">
-      
       <a-entity id="marker" gps-entity-place="latitude: 0; longitude: 0;" visible="false">
         <a-cylinder radius="3" height="1000" material="color: #34c759; opacity: 0.5; transparent: true;"></a-cylinder>
         <a-text id="marker-name" value="" align="center" scale="50 50 50" position="0 30 0" look-at="[gps-camera]"></a-text>
       </a-entity>
-
-      <a-camera id="camera" gps-camera="minDistance: 1; maxDistance: 10000; gpsMinDistance: 1;" rotation-reader></a-camera>
+      <a-camera id="camera" gps-camera="minDistance: 1; gpsMinDistance: 1;" rotation-reader></a-camera>
     </a-scene>
 
     <script>
@@ -92,22 +90,30 @@
       // GPS Alta Precisión
       navigator.geolocation.watchPosition(p => {
         document.getElementById('my-coords').innerText = `${p.coords.latitude.toFixed(6)}, ${p.coords.longitude.toFixed(6)}`;
-      }, null, { enableHighAccuracy: true, maximumAge: 0 });
+      }, null, { enableHighAccuracy: true });
 
       mainBtn.addEventListener('click', async () => {
+        // Forzar desaparición de mensajes residuales de la librería
+        const loader = document.querySelector('.arjs-loader');
+        if(loader) loader.style.display = 'none';
+
         const scene = document.querySelector('a-scene');
         if (scene.suspended) scene.resume();
         
+        // Permisos iOS 12+
         if (typeof DeviceOrientationEvent.requestPermission === 'function') {
           await DeviceOrientationEvent.requestPermission();
         }
 
         const query = document.getElementById('search-input').value;
-        if (!query) return;
+        if (!query) {
+            status.innerText = "Escribe un destino primero";
+            return;
+        }
 
         if (query.includes(',')) {
           const p = query.split(',');
-          fijarDestino(parseFloat(p[0]), parseFloat(p[1]), "Coordenadas");
+          fijarDestino(parseFloat(p[0]), parseFloat(p[1]), "Punto Manual");
         } else {
           status.innerText = "Buscando en mapa...";
           try {
@@ -116,10 +122,10 @@
             if (data.length > 0) { 
               fijarDestino(parseFloat(data[0].lat), parseFloat(data[0].lon), data[0].name); 
             } else {
-              status.innerText = "No encontrado";
+              status.innerText = "Lugar no encontrado";
             }
           } catch (e) {
-            status.innerText = "Error de red";
+            status.innerText = "Error de conexión";
           }
         }
       });
@@ -138,18 +144,15 @@
 
       function iniciarRastreo() {
         let lastHeading = 0;
-        const smoothing = 0.85; // Ajustado para iPhone 12
+        const smoothing = 0.85;
 
         window.addEventListener('deviceorientation', (e) => {
           const camComp = document.querySelector('[gps-camera]').components['gps-camera'];
           if (camComp && camComp.currentCoords) {
             const myPos = camComp.currentCoords;
-            
-            // Distancia
             const dist = calcularDistancia(myPos.latitude, myPos.longitude, dLat, dLng);
             mainBtn.innerText = dist > 1000 ? (dist/1000).toFixed(2) + " KM" : Math.round(dist) + " METROS";
 
-            // Rumbo
             const rad = Math.PI / 180;
             const y = Math.sin((dLng - myPos.longitude) * rad) * Math.cos(dLat * rad);
             const x = Math.cos(myPos.latitude * rad) * Math.sin(dLat * rad) -
@@ -162,7 +165,6 @@
 
             let finalRotation = (bearing - heading + 360) % 360;
 
-            // Alineación de 5 grados (Oro)
             if (finalRotation < 5 || finalRotation > 355) {
               arrowPath.setAttribute('fill', '#FFD700');
               arrow.style.transform = `translate(-50%, -50%) rotate(0deg) scale(1.4)`;
