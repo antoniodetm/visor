@@ -3,39 +3,24 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-    <title>AR Localizador Total - iPhone 12</title>
+    <title>Localizador AR con Flecha - iPhone 12</title>
     <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
     <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar-nft.js"></script>
     
     <style>
       body { margin: 0; overflow: hidden; font-family: -apple-system, sans-serif; background: #000; }
       
-      /* Panel de Control Superior */
       .ui-panel {
         position: fixed; top: 0; left: 0; width: 100%;
         background: rgba(0,0,0,0.85); backdrop-filter: blur(10px);
         color: white; padding: env(safe-area-inset-top) 15px 15px 15px; 
-        z-index: 100; box-sizing: border-box;
-        border-bottom: 1px solid rgba(255,255,255,0.2);
-      }
-
-      /* Panel de Datos Inferior (GPS) */
-      .data-panel {
-        position: fixed; bottom: 0; left: 0; width: 100%;
-        background: rgba(0,0,0,0.7); color: #fff;
-        padding: 10px 20px env(safe-area-inset-bottom) 20px;
-        font-size: 11px; z-index: 100; box-sizing: border-box;
-        display: flex; justify-content: space-between;
-        border-top: 1px solid rgba(255,255,255,0.1);
+        z-index: 100; box-sizing: border-box; border-bottom: 1px solid rgba(255,255,255,0.2);
       }
 
       .input-group { display: flex; flex-direction: column; gap: 8px; margin-top: 10px; }
-      .row { display: flex; gap: 8px; }
-      
       input { 
         padding: 12px; border-radius: 10px; border: none; 
-        font-size: 16px; background: rgba(255,255,255,0.15); color: white;
-        width: 100%; box-sizing: border-box;
+        font-size: 16px; background: rgba(255,255,255,0.15); color: white; width: 100%; box-sizing: border-box;
       }
       
       button { 
@@ -43,92 +28,92 @@
         color: white; border: none; font-weight: bold; font-size: 16px;
       }
 
-      .data-box b { color: #007AFF; text-transform: uppercase; display: block; margin-bottom: 2px; }
+      /* LA FLECHA GUÍA */
+      #arrow-guide {
+        position: fixed; top: 55%; left: 50%;
+        transform: translate(-50%, -50%);
+        width: 80px; height: 80px;
+        z-index: 200;
+        display: none; /* Se activa al buscar */
+        transition: transform 0.1s ease-out;
+      }
+
+      .data-panel {
+        position: fixed; bottom: 0; left: 0; width: 100%;
+        background: rgba(0,0,0,0.7); color: #fff;
+        padding: 10px 20px env(safe-area-inset-bottom) 20px;
+        font-size: 11px; z-index: 100; box-sizing: border-box;
+        display: flex; justify-content: space-between;
+      }
+
       #status-msg { margin-top: 10px; font-size: 13px; color: #34c759; text-align: center; }
     </style>
   </head>
 
   <body>
+    <div id="arrow-guide">
+      <svg viewBox="0 0 100 100">
+        <path d="M50 0 L90 40 L60 40 L60 100 L40 100 L40 40 L10 40 Z" fill="#34c759" stroke="white" stroke-width="2"/>
+      </svg>
+    </div>
+
     <div class="ui-panel">
       <div class="input-group">
-        <input type="text" id="place-name" placeholder="Lugar (ej: Museo del Prado)">
-        <div class="row">
-          <input type="number" id="lat-input" placeholder="Latitud destino" step="any">
-          <input type="number" id="lng-input" placeholder="Longitud destino" step="any">
-        </div>
-        <button id="btn-action">BUSCAR Y ACTIVAR AR</button>
+        <input type="text" id="place-name" placeholder="Nombre o Coordenadas (Lat, Lng)">
+        <button id="btn-action">ACTIVAR Y BUSCAR</button>
       </div>
-      <div id="status-msg">Introduce destino y pulsa el botón</div>
+      <div id="status-msg">Pulsa el botón para empezar</div>
     </div>
 
     <div class="data-panel">
-      <div class="data-box">
-        <b>Mi Ubicación</b>
-        <span id="my-coords">Esperando GPS...</span>
-      </div>
-      <div class="data-box" style="text-align: right;">
-        <b>Destino Fijado</b>
-        <span id="dest-coords">Ninguno</span>
-      </div>
+      <div><b>MI GPS:</b> <span id="my-coords">...</span></div>
+      <div style="text-align: right;"><b>DESTINO:</b> <span id="dest-coords">...</span></div>
     </div>
 
-    <a-scene embedded vr-mode-ui="enabled: false" 
-             arjs="sourceType: webcam; debugUIEnabled: false; videoTexture: true;">
-      
+    <a-scene embedded vr-mode-ui="enabled: false" arjs="sourceType: webcam; debugUIEnabled: false; videoTexture: true;">
       <a-entity id="target" gps-entity-place="latitude: 0; longitude: 0;" visible="false">
-        <a-cylinder radius="4" height="1000" material="color: #34c759; opacity: 0.6"></a-cylinder>
-        <a-text id="marker-label" value="DESTINO" align="center" scale="50 50 50" position="0 50 0" look-at="[gps-camera]"></a-text>
+        <a-cylinder radius="5" height="1000" material="color: #34c759; opacity: 0.7"></a-cylinder>
       </a-entity>
-
       <a-camera id="camera" gps-camera rotation-reader></a-camera>
     </a-scene>
 
     <script>
       const btn = document.getElementById('btn-action');
+      const arrow = document.getElementById('arrow-guide');
       const statusMsg = document.getElementById('status-msg');
-      const myCoordsText = document.getElementById('my-coords');
-      const destCoordsText = document.getElementById('dest-coords');
       const target = document.getElementById('target');
+      
+      let destLat, destLng;
 
-      // 1. Rastrear mi ubicación real continuamente
-      navigator.geolocation.watchPosition((pos) => {
-        const lat = pos.coords.latitude.toFixed(6);
-        const lng = pos.coords.longitude.toFixed(6);
-        myCoordsText.innerText = `${lat}, ${lng}`;
-      }, (err) => {
-        myCoordsText.innerText = "GPS Desactivado";
-      }, { enableHighAccuracy: true });
+      // 1. Obtener mi ubicación
+      navigator.geolocation.watchPosition(pos => {
+        document.getElementById('my-coords').innerText = `${pos.coords.latitude.toFixed(4)}, ${pos.coords.longitude.toFixed(4)}`;
+      });
 
-      // 2. Acción del botón (Activar Sensores + Buscar)
-      btn.addEventListener('click', async function() {
-        // Desbloquear AR en iPhone
+      // 2. Lógica del botón
+      btn.addEventListener('click', async () => {
         const scene = document.querySelector('a-scene');
         if (scene.suspended) scene.resume();
         if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-          await DeviceOrientationEvent.requestPermission();
+            await DeviceOrientationEvent.requestPermission();
         }
 
-        const name = document.getElementById('place-name').value;
-        const latIn = document.getElementById('lat-input').value;
-        const lngIn = document.getElementById('lng-input').value;
+        const input = document.getElementById('place-name').value;
+        const isCoords = input.includes(',');
 
-        // Prioridad Coordenadas Manuales
-        if (latIn && lngIn) {
-          fijarDestino(parseFloat(latIn), parseFloat(lngIn), "Coordenadas manuales");
-        } 
-        // Búsqueda por Nombre
-        else if (name) {
-          statusMsg.innerText = "Buscando en mapa...";
-          try {
-            const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(name)}`);
-            const data = await res.json();
-            if (data.length > 0) {
-              fijarDestino(parseFloat(data[0].lat), parseFloat(data[0].lon), data[0].display_name.split(',')[0]);
-            } else {
-              statusMsg.innerText = "No se encontró el lugar";
-            }
-          } catch (e) {
-            statusMsg.innerText = "Error de conexión";
+        if (isCoords) {
+          const parts = input.split(',');
+          destLat = parseFloat(parts[0]);
+          destLng = parseFloat(parts[1]);
+          fijarDestino(destLat, destLng, "Punto fijado");
+        } else {
+          statusMsg.innerText = "Buscando...";
+          const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(input)}`);
+          const data = await res.json();
+          if (data.length > 0) {
+            destLat = parseFloat(data[0].lat);
+            destLng = parseFloat(data[0].lon);
+            fijarDestino(destLat, destLng, data[0].name);
           }
         }
       });
@@ -136,15 +121,40 @@
       function fijarDestino(lat, lng, label) {
         target.setAttribute('gps-entity-place', `latitude: ${lat}; longitude: ${lng};`);
         target.setAttribute('visible', 'true');
-        
-        // Actualizar interfaz
-        destCoordsText.innerText = `${lat.toFixed(6)}, ${lng.toFixed(6)}`;
-        statusMsg.innerText = `📍 Rumbo a: ${label}`;
-        document.getElementById('marker-label').setAttribute('value', label.toUpperCase());
-        
-        statusMsg.style.color = "#34c759";
-        btn.innerText = "ACTUALIZAR DESTINO";
+        document.getElementById('dest-coords').innerText = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
+        statusMsg.innerText = `Sigue la flecha hacia: ${label}`;
+        arrow.style.display = 'block';
+        actualizarFlecha();
       }
+
+      // 3. CÁLCULO DE LA FLECHA (Matemática de rumbo)
+      function actualizarFlecha() {
+        if (!destLat) return;
+
+        window.addEventListener('deviceorientation', (event) => {
+          const camera = document.querySelector('[gps-camera]');
+          const components = camera.components['gps-camera'];
+          
+          if (components && components.currentCoords) {
+            const myPos = components.currentCoords;
+            
+            // Cálculo del rumbo (bearing)
+            const y = Math.sin(toRad(destLng - myPos.longitude)) * Math.cos(toRad(destLat));
+            const x = Math.cos(toRad(myPos.latitude)) * Math.sin(toRad(destLat)) -
+                      Math.sin(toRad(myPos.latitude)) * Math.cos(toRad(destLat)) * Math.cos(toRad(destLng - myPos.longitude));
+            let bearing = toDeg(Math.atan2(y, x));
+            
+            // Ajustar con la brújula del iPhone (webkitCompassHeading)
+            const heading = event.webkitCompassHeading || 0;
+            const arrowRotation = bearing - heading;
+
+            arrow.style.transform = `translate(-50%, -50%) rotate(${arrowRotation}deg)`;
+          }
+        });
+      }
+
+      function toRad(deg) { return deg * Math.PI / 180; }
+      function toDeg(rad) { return rad * 180 / Math.PI; }
     </script>
   </body>
 </html>
