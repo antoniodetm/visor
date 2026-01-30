@@ -20,7 +20,7 @@
       }
 
       .input-container { display: flex; gap: 10px; flex-direction: column; }
-      input { padding: 12px; border-radius: 10px; border: none; font-size: 16px; background: rgba(255,255,255,0.15); color: white; }
+      input { padding: 12px; border-radius: 10px; border: none; font-size: 16px; background: rgba(255,255,255,0.15); color: white; outline: none; }
       
       #main-button { 
         padding: 14px; border-radius: 10px; background: var(--ios-blue); 
@@ -53,10 +53,10 @@
   <body>
     <div class="ui-header">
       <div class="input-container">
-        <input type="text" id="search-input" placeholder="Lugar o Coordenadas...">
-        <button id="main-button">INICIAR RASTREO PRECISO</button>
+        <input type="text" id="search-input" placeholder="Lugar (ej: Puerta del Sol)..." translate="no">
+        <button id="main-button">INICIAR RASTREO</button>
       </div>
-      <div id="status-text">Sistema listo - iPhone 12 Optimized</div>
+      <div id="status-text">Sistema listo - iPhone 12</div>
     </div>
 
     <div id="guide-arrow">
@@ -75,10 +75,10 @@
       
       <a-entity id="marker" gps-entity-place="latitude: 0; longitude: 0;" visible="false">
         <a-cylinder radius="3" height="1000" material="color: #34c759; opacity: 0.5; transparent: true;"></a-cylinder>
-        <a-text id="marker-name" value="" align="center" scale="50 50 50" position="0 30 0" look-at="[gps-camera]"></a-text>
+        <a-text id="marker-name" value="" align="center" scale="50 50 50" position="0 30 0"></a-text>
       </a-entity>
 
-      <a-camera id="camera" gps-camera="minDistance: 1; maxDistance: 10000; gpsMinDistance: 1;" rotation-reader></a-camera>
+      <a-camera id="camera" gps-camera="minDistance: 1; maxDistance: 10000;" rotation-reader></a-camera>
     </a-scene>
 
     <script>
@@ -92,34 +92,40 @@
       // GPS Alta Precisión
       navigator.geolocation.watchPosition(p => {
         document.getElementById('my-coords').innerText = `${p.coords.latitude.toFixed(6)}, ${p.coords.longitude.toFixed(6)}`;
-      }, null, { enableHighAccuracy: true, maximumAge: 0 });
+      }, null, { enableHighAccuracy: true });
 
       mainBtn.addEventListener('click', async () => {
-        const scene = document.querySelector('a-scene');
-        if (scene.suspended) scene.resume();
-        
+        const query = document.getElementById('search-input').value;
+        if (!query) return;
+
+        // Permisos para iPhone 12
         if (typeof DeviceOrientationEvent.requestPermission === 'function') {
           await DeviceOrientationEvent.requestPermission();
         }
-
-        const query = document.getElementById('search-input').value;
-        if (!query) return;
 
         if (query.includes(',')) {
           const p = query.split(',');
           fijarDestino(parseFloat(p[0]), parseFloat(p[1]), "Coordenadas");
         } else {
           status.innerText = "Buscando en mapa...";
+          mainBtn.innerText = "BUSCANDO...";
+          
           try {
-            const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`);
+            // Se añade el header 'User-Agent' para evitar bloqueos de Nominatim
+            const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`, {
+              headers: { 'User-Agent': 'AR-Finder-App-v1' }
+            });
             const data = await res.json();
-            if (data.length > 0) { 
-              fijarDestino(parseFloat(data[0].lat), parseFloat(data[0].lon), data[0].name); 
+            
+            if (data && data.length > 0) { 
+              fijarDestino(parseFloat(data[0].lat), parseFloat(data[0].lon), data[0].display_name.split(',')[0]); 
             } else {
               status.innerText = "No encontrado";
+              mainBtn.innerText = "INICIAR RASTREO";
             }
           } catch (e) {
-            status.innerText = "Error de red";
+            status.innerText = "Error de conexión";
+            mainBtn.innerText = "INICIAR RASTREO";
           }
         }
       });
@@ -138,7 +144,7 @@
 
       function iniciarRastreo() {
         let lastHeading = 0;
-        const smoothing = 0.85; // Ajustado para iPhone 12
+        const smoothing = 0.85;
 
         window.addEventListener('deviceorientation', (e) => {
           const camComp = document.querySelector('[gps-camera]').components['gps-camera'];
@@ -149,23 +155,23 @@
             const dist = calcularDistancia(myPos.latitude, myPos.longitude, dLat, dLng);
             mainBtn.innerText = dist > 1000 ? (dist/1000).toFixed(2) + " KM" : Math.round(dist) + " METROS";
 
-            // Rumbo
+            // Cálculo de Rumbo (Bearing)
             const rad = Math.PI / 180;
             const y = Math.sin((dLng - myPos.longitude) * rad) * Math.cos(dLat * rad);
             const x = Math.cos(myPos.latitude * rad) * Math.sin(dLat * rad) -
                       Math.sin(myPos.latitude * rad) * Math.cos(dLat * rad) * Math.cos((dLng - myPos.longitude) * rad);
             let bearing = Math.atan2(y, x) * (180 / Math.PI);
             
+            // Brújula de iPhone
             let heading = e.webkitCompassHeading || 0;
             heading = smoothing * lastHeading + (1 - smoothing) * heading;
             lastHeading = heading;
 
             let finalRotation = (bearing - heading + 360) % 360;
 
-            // Alineación de 5 grados (Oro)
-            if (finalRotation < 5 || finalRotation > 355) {
+            if (finalRotation < 10 || finalRotation > 350) {
               arrowPath.setAttribute('fill', '#FFD700');
-              arrow.style.transform = `translate(-50%, -50%) rotate(0deg) scale(1.4)`;
+              arrow.style.transform = `translate(-50%, -50%) rotate(0deg) scale(1.2)`;
               status.innerText = "🎯 OBJETIVO ENFOCADO";
               status.style.color = "#FFD700";
             } else {
