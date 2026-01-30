@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover" />
-    <title>AR Urban Radar</title>
+    <title>AR Horizon Scanner</title>
     <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
     <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar-nft.js"></script>
     
@@ -11,51 +11,57 @@
       :root { --safe-top: env(safe-area-inset-top); --safe-bottom: env(safe-area-inset-bottom); }
       body { margin: 0; overflow: hidden; font-family: -apple-system, sans-serif; background: #000; }
 
-      /* Cabecera */
+      /* Estado Superior */
       .ui-header { 
         position: fixed; top: 0; left: 0; right: 0; z-index: 1000; 
-        background: rgba(0, 0, 0, 0.85); backdrop-filter: blur(15px);
+        background: rgba(0, 0, 0, 0.5); backdrop-filter: blur(10px);
         padding: calc(15px + var(--safe-top)) 20px 15px 20px;
-        text-align: center; border-bottom: 2px solid #FF9500; /* Color naranja para geografía */
+        text-align: center; border-bottom: 1px solid rgba(255,255,255,0.2);
       }
-      .radar-status { color: #FF9500; font-weight: 900; font-size: 18px; letter-spacing: 1px; }
+      .radar-title { color: white; font-weight: 800; font-size: 16px; letter-spacing: 2px; opacity: 0.8; }
 
-      /* Lista lateral interactiva */
-      .places-panel {
-        position: fixed; top: calc(90px + var(--safe-top)); left: 15px;
-        z-index: 1000; width: 70%; display: flex; flex-direction: column; gap: 10px;
+      /* NOTIFICACIÓN DE PUEBLO DETECTADO */
+      .detection-overlay {
+        position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+        z-index: 1000; width: 85%; pointer-events: none; text-align: center;
       }
-      .place-card {
-        background: rgba(30, 30, 30, 0.7); backdrop-filter: blur(8px);
-        color: #888; padding: 18px; border-radius: 15px;
-        border-left: 6px solid #444; font-size: 18px; font-weight: 800;
-        transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
-        transform: scale(0.9); transform-origin: left;
+      
+      .town-name {
+        font-size: 42px; font-weight: 900; color: #FF9500;
+        text-shadow: 0 0 20px rgba(0,0,0,0.8), 0 0 10px rgba(255,149,0,0.5);
+        opacity: 0; transition: opacity 0.2s ease, transform 0.2s ease;
+        transform: scale(0.8); text-transform: uppercase;
       }
-      /* Cuando enfocas el pueblo/ciudad */
-      .place-card.active {
-        color: #fff; background: rgba(255, 149, 0, 0.9);
-        border-left: 6px solid #fff; transform: scale(1.05);
-        box-shadow: 0 0 25px rgba(255, 149, 0, 0.6);
-      }
+      
+      .town-name.visible { opacity: 1; transform: scale(1); }
 
-      .ui-footer {
-        position: fixed; bottom: 0; left: 0; right: 0; z-index: 1000;
-        background: rgba(0,0,0,0.8); padding: 10px 20px calc(10px + var(--safe-bottom)) 20px;
-        color: #aaa; font-size: 12px; font-family: monospace; text-align: center;
+      .distance-info {
+        color: white; font-size: 18px; font-weight: 600; margin-top: 10px;
+        background: rgba(0,0,0,0.5); padding: 5px 15px; border-radius: 20px;
+        display: inline-block; opacity: 0; transition: opacity 0.2s;
+      }
+      .distance-info.visible { opacity: 1; }
+
+      /* Guía visual central */
+      .scanner-line {
+        position: fixed; top: 50%; left: 0; right: 0; height: 2px;
+        background: linear-gradient(90deg, transparent, #FF9500, transparent);
+        z-index: 999; opacity: 0.4;
       }
     </style>
   </head>
 
   <body>
     <div class="ui-header">
-      <div id="status" class="radar-status">LOCALIZANDO PUEBLOS...</div>
+      <div class="radar-title">ESCÁNER DE HORIZONTE ACTIVO</div>
     </div>
 
-    <div id="places-panel" class="places-panel"></div>
+    <div class="scanner-line"></div>
 
-    <div class="ui-footer">
-      SISTEMA DE RADAR GEOGRÁFICO - FILTRO: MUNICIPAL
+    <div class="detection-overlay">
+      <div id="town-display" class="town-name">BUSCANDO...</div>
+      <br>
+      <div id="dist-display" class="distance-info">---</div>
     </div>
 
     <a-scene vr-mode-ui="enabled: false" embedded arjs="sourceType: webcam; debugUIEnabled: false; videoTexture: true;">
@@ -63,118 +69,91 @@
     </a-scene>
 
     <script>
-      let poiData = [];
-      const panel = document.getElementById('places-panel');
-      const status = document.getElementById('status');
-      const scene = document.querySelector('a-scene');
+      let pueblos = [];
+      const display = document.getElementById('town-display');
+      const distDisplay = document.getElementById('dist-display');
 
+      // 1. Localizar y buscar pueblos en un radio de 30km
       navigator.geolocation.getCurrentPosition((pos) => {
         const lat = pos.coords.latitude;
         const lon = pos.coords.longitude;
-        fetchNearbyCities(lat, lon);
+        fetchPueblos(lat, lon);
         
         if (typeof DeviceOrientationEvent.requestPermission === 'function') {
           DeviceOrientationEvent.requestPermission();
         }
-        window.addEventListener('deviceorientation', checkInteraction, true);
-      }, (err) => { status.innerText = "ERROR GPS"; }, { enableHighAccuracy: true });
+        window.addEventListener('deviceorientation', scanHorizon, true);
+      });
 
-      async function fetchNearbyCities(lat, lon) {
-        // Query optimizada para núcleos de población en un radio de 15km
-        const query = `[out:json];node(around:15000,${lat},${lon})["place"~"city|town|village|hamlet"];out 5;`;
+      async function fetchPueblos(lat, lon) {
+        // Buscamos núcleos urbanos en 30km
+        const query = `[out:json];node(around:30000,${lat},${lon})["place"~"city|town|village|hamlet"];out 15;`;
         const url = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`;
 
         try {
           const res = await fetch(url);
           const data = await res.json();
-          
-          // Ordenar por cercanía aproximada (opcional pero recomendado)
-          poiData = data.elements.map(el => ({
-            name: el.tags.name ? el.tags.name.toUpperCase() : "NÚCLEO URBANO",
-            type: el.tags.place,
+          pueblos = data.elements.map(el => ({
+            name: el.tags.name ? el.tags.name.toUpperCase() : "PUEBLO DESCONOCIDO",
             lat: el.lat,
             lon: el.lon,
-            id: `city-${Math.random().toString(36).substr(2, 9)}`
+            dist: 0
           }));
-          
-          renderAR();
-          renderUI();
-          status.innerText = `RADAR: ${poiData.length} NÚCLEOS DETECTADOS`;
-        } catch (e) { status.innerText = "ERROR DE CARGA"; }
+        } catch (e) { console.error("Error cargando datos geográficos"); }
       }
 
-      function renderUI() {
-        panel.innerHTML = '';
-        poiData.forEach(poi => {
-          const div = document.createElement('div');
-          div.id = poi.id;
-          div.className = 'place-card';
-          // Mostramos nombre y tipo (Ciudad/Pueblo)
-          div.innerHTML = `${poi.name}<br><span style="font-size:10px; opacity:0.7;">${poi.type.toUpperCase()}</span>`;
-          panel.appendChild(div);
-        });
-      }
+      function scanHorizon(e) {
+        if (pueblos.length === 0) return;
 
-      function renderAR() {
-        poiData.forEach(poi => {
-          const entity = document.createElement('a-entity');
-          entity.setAttribute('gps-entity-place', `latitude: ${poi.lat}; longitude: ${poi.lon}`);
-          
-          // Texto flotante grande
-          const text = document.createElement('a-text');
-          text.setAttribute('value', poi.name);
-          text.setAttribute('scale', '150 150 150');
-          text.setAttribute('look-at', '[gps-camera]');
-          text.setAttribute('align', 'center');
-          text.setAttribute('color', '#FF9500');
-          text.setAttribute('position', '0 50 0');
-
-          // Cilindro tipo baliza para ciudades
-          const beacon = document.createElement('a-cylinder');
-          beacon.setAttribute('radius', '20');
-          beacon.setAttribute('height', '500');
-          beacon.setAttribute('material', 'color: #FF9500; opacity: 0.3; transparent: true; shader: flat;');
-          beacon.setAttribute('position', '0 250 0');
-
-          entity.appendChild(text);
-          entity.appendChild(beacon);
-          scene.appendChild(entity);
-        });
-      }
-
-      function checkInteraction(e) {
-        if (poiData.length === 0) return;
         let heading = e.webkitCompassHeading || (360 - e.alpha);
-        
+        let puebloDetectado = null;
+        let minimaDistanciaAngular = 12; // Sensibilidad de la mirada (grados)
+
         navigator.geolocation.getCurrentPosition((pos) => {
           const uLat = pos.coords.latitude;
           const uLon = pos.coords.longitude;
 
-          poiData.forEach(poi => {
-            const y = Math.sin(toRadians(poi.lon - uLon)) * Math.cos(toRadians(poi.lat));
-            const x = Math.cos(toRadians(uLat)) * Math.sin(toRadians(poi.lat)) -
-                      Math.sin(toRadians(uLat)) * Math.cos(toRadians(poi.lat)) * Math.cos(toRadians(poi.lon - uLon));
+          pueblos.forEach(p => {
+            const y = Math.sin(toRadians(p.lon - uLon)) * Math.cos(toRadians(p.lat));
+            const x = Math.cos(toRadians(uLat)) * Math.sin(toRadians(p.lat)) -
+                      Math.sin(toRadians(uLat)) * Math.cos(toRadians(p.lat)) * Math.cos(toRadians(p.lon - uLon));
             const bearing = (toDegrees(Math.atan2(y, x)) + 360) % 360;
 
             const diff = Math.abs((bearing - heading + 540) % 360 - 180);
-            const uiElement = document.getElementById(poi.id);
 
-            if (uiElement) {
-              if (diff < 20) { // Rango un poco más amplio para ciudades
-                if (!uiElement.classList.contains('active')) {
-                  uiElement.classList.add('active');
-                  window.navigator.vibrate(40);
-                }
-              } else {
-                uiElement.classList.remove('active');
-              }
+            if (diff < minimaDistanciaAngular) {
+              puebloDetectado = p;
+              p.dist = calcDist(uLat, uLon, p.lat, p.lon);
             }
           });
-        }, null, { enableHighAccuracy: false }); // Menos precisión para ciudades lejanas ahorra batería
+
+          if (puebloDetectado) {
+            display.innerText = puebloDetectado.name;
+            display.classList.add('visible');
+            distDisplay.innerText = puebloDetectado.dist.toFixed(1) + " KM EN ESTA DIRECCIÓN";
+            distDisplay.classList.add('visible');
+            // Vibración suave al detectar
+            if (!display.dataset.last || display.dataset.last !== puebloDetectado.name) {
+                window.navigator.vibrate(50);
+                display.dataset.last = puebloDetectado.name;
+            }
+          } else {
+            display.classList.remove('visible');
+            distDisplay.classList.remove('visible');
+            display.dataset.last = "";
+          }
+        });
       }
 
+      // Utilidades matemáticas
       function toRadians(d) { return d * Math.PI / 180; }
       function toDegrees(r) { return r * 180 / Math.PI; }
+      function calcDist(l1, n1, l2, n2) {
+        const R = 6371;
+        const dL = toRadians(l2-l1); const dN = toRadians(n2-n1);
+        const a = Math.sin(dL/2)**2 + Math.cos(toRadians(l1))*Math.cos(toRadians(l2))*Math.sin(dN/2)**2;
+        return R * 2 * Math.atan2(Math.sqrt(a), Math.sqrt(1-a));
+      }
     </script>
   </body>
 </html>
