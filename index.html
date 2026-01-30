@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover" />
-    <title>AR Horizon Scanner - Distance Priority</title>
+    <title>AR Horizon Scanner - Nearest Only</title>
     <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
     <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar-nft.js"></script>
     
@@ -11,7 +11,6 @@
       :root { --safe-top: env(safe-area-inset-top); --safe-bottom: env(safe-area-inset-bottom); }
       body { margin: 0; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #000; color: white; }
 
-      /* HUD Superior */
       .hud-header { 
         position: fixed; top: 0; left: 0; right: 0; z-index: 1000; 
         background: linear-gradient(to bottom, rgba(0,0,0,0.85), transparent);
@@ -21,7 +20,6 @@
       .radar-line { width: 40%; height: 2px; background: #FF9500; margin: 10px auto; box-shadow: 0 0 15px #FF9500; }
       .radar-label { font-weight: 800; letter-spacing: 4px; font-size: 12px; color: rgba(255,149,0,0.9); }
 
-      /* CONTENEDOR DE RESULTADOS */
       .results-container {
         position: fixed; top: 55%; left: 50%; transform: translate(-50%, -50%);
         width: 85%; z-index: 1000; display: flex; flex-direction: column; gap: 12px;
@@ -29,22 +27,21 @@
       }
 
       .town-card {
-        background: rgba(15, 15, 15, 0.75); backdrop-filter: blur(12px);
-        border-left: 6px solid #FF9500; padding: 18px 22px; border-radius: 0 20px 20px 0;
+        background: rgba(15, 15, 15, 0.85); backdrop-filter: blur(12px);
+        border-left: 8px solid #FF9500; padding: 22px; border-radius: 0 20px 20px 0;
         display: flex; justify-content: space-between; align-items: center;
-        transition: all 0.4s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        transition: all 0.3s ease;
         opacity: 0; transform: translateX(-30px);
       }
       
       .town-card.visible { opacity: 1; transform: translateX(0); }
 
-      .town-info h2 { margin: 0; font-size: 24px; font-weight: 900; color: #FF9500; text-transform: uppercase; }
-      .town-info p { margin: 3px 0 0; font-size: 11px; color: #888; font-weight: 700; letter-spacing: 1px; }
+      .town-info h2 { margin: 0; font-size: 28px; font-weight: 900; color: #FF9500; text-transform: uppercase; }
+      .town-info p { margin: 3px 0 0; font-size: 12px; color: #888; font-weight: 700; letter-spacing: 1px; }
       
-      .distance-tag { font-size: 28px; font-weight: 900; color: white; font-family: 'Courier New', monospace; }
-      .km-unit { font-size: 12px; color: #FF9500; margin-left: 2px; }
+      .distance-tag { font-size: 32px; font-weight: 900; color: white; font-family: 'Courier New', monospace; }
+      .km-unit { font-size: 14px; color: #FF9500; margin-left: 2px; }
 
-      /* Punto de mira central */
       .crosshair {
         position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
         width: 40px; height: 40px; border: 1px solid rgba(255,149,0,0.4); border-radius: 50%;
@@ -56,7 +53,7 @@
 
   <body>
     <div class="hud-header">
-      <div class="radar-label">PROXIMITY SCANNER</div>
+      <div class="radar-label">NEAREST TARGET SCANNER</div>
       <div class="radar-line"></div>
     </div>
 
@@ -83,7 +80,6 @@
       });
 
       async function fetchPueblos(lat, lon) {
-        // Radio de 50km para tener un buen rango de búsqueda
         const query = `[out:json];node(around:50000,${lat},${lon})["place"~"city|town|village|hamlet"];out 50;`;
         const url = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`;
         try {
@@ -95,7 +91,7 @@
             lon: el.lon,
             tipo: (el.tags.place || "Pueblo").toUpperCase()
           }));
-        } catch (e) { console.error("Error cargando datos de OpenStreetMap"); }
+        } catch (e) { console.error("Error API"); }
       }
 
       function handleOrientation(e) {
@@ -117,39 +113,31 @@
             return { ...p, diff, dist };
           });
 
-          // FILTRO: Solo en dirección de cámara (cono de 30 grados)
-          // ORDEN: De menor distancia a mayor distancia (el más cercano primero)
-          const ordenadosPorDistancia = listadoProcesado
+          // FILTRO: Solo en dirección (15 grados) y tomamos SOLO el primero (.slice(0,1))
+          const masCercano = listadoProcesado
             .filter(p => p.diff < 15)
             .sort((a, b) => a.dist - b.dist)
-            .slice(0, 5);
+            .slice(0, 1);
 
-          renderUI(ordenadosPorDistancia);
+          renderUI(masCercano);
         });
       }
 
       function renderUI(pueblos) {
         container.innerHTML = '';
-        pueblos.forEach((p, index) => {
+        if (pueblos.length > 0) {
+          const p = pueblos[0];
           const card = document.createElement('div');
           card.className = 'town-card visible';
-          // Efecto de desvanecimiento según la posición en la lista (más lejos = más transparente)
-          card.style.opacity = 1 - (index * 0.15);
-          card.style.transitionDelay = `${index * 0.05}s`;
-          
           card.innerHTML = `
             <div class="town-info">
               <h2>${p.name}</h2>
-              <p>${p.tipo} • EN TU DIRECCIÓN</p>
+              <p>${p.tipo} • EL MÁS CERCANO</p>
             </div>
             <div class="distance-tag">${p.dist.toFixed(1)}<span class="km-unit">KM</span></div>
           `;
           container.appendChild(card);
-        });
-        
-        // Vibración corta si el pueblo más cercano está casi perfecto en el centro
-        if (pueblos.length > 0 && pueblos[0].diff < 3) {
-            window.navigator.vibrate(15);
+          if (p.diff < 4) window.navigator.vibrate(20);
         }
       }
 
