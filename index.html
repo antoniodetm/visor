@@ -3,149 +3,135 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
-    <title>AR Finder - Alineación Precisa</title>
+    <title>AR Finder - Fix Sensores</title>
     <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
     <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar-nft.js"></script>
     
     <style>
-      :root { --ios-blue: #007AFF; --ios-green: #34c759; --ios-target: #5AC8FA; }
+      :root { --ios-blue: #007AFF; --ios-green: #34c759; }
       body { margin: 0; overflow: hidden; font-family: -apple-system, sans-serif; background: #000; }
 
-      /* Interfaz Superior */
       .ui-header {
         position: fixed; top: 0; left: 0; width: 100%;
         background: rgba(0,0,0,0.8); backdrop-filter: blur(20px);
-        padding: env(safe-area-inset-top) 20px 15px 20px;
-        z-index: 1000; box-sizing: border-box;
-        border-bottom: 0.5px solid rgba(255,255,255,0.2);
+        padding: 20px; z-index: 1000; box-sizing: border-box;
       }
       .input-container { display: flex; gap: 10px; flex-direction: column; }
-      input { padding: 12px; border-radius: 10px; border: none; font-size: 16px; background: rgba(255,255,255,0.15); color: white; }
-      button { padding: 14px; border-radius: 10px; background: var(--ios-blue); color: white; border: none; font-weight: 600; }
+      input { padding: 12px; border-radius: 10px; border: none; background: rgba(255,255,255,0.2); color: white; }
+      button { padding: 14px; border-radius: 10px; background: var(--ios-blue); color: white; border: none; font-weight: bold; }
 
-      /* Flecha de Dirección Dinámica */
       #guide-arrow {
-        position: fixed; top: 55%; left: 50%;
-        transform: translate(-50%, -50%) rotate(0deg);
-        width: 80px; height: 80px;
+        position: fixed; top: 50%; left: 50%;
+        transform: translate(-50%, -50%);
+        width: 100px; height: 100px;
         z-index: 500; display: none;
-        transition: transform 0.1s ease-out, color 0.3s, scale 0.3s;
       }
 
-      /* Panel Inferior */
       .data-footer {
         position: fixed; bottom: 0; left: 0; width: 100%;
         background: rgba(0,0,0,0.8); color: white;
-        padding: 10px 20px env(safe-area-inset-bottom) 20px;
-        font-size: 12px; z-index: 1000; box-sizing: border-box;
-        display: flex; justify-content: space-between;
+        padding: 15px; font-size: 11px; z-index: 1000; display: flex; justify-content: space-between;
       }
-      #status-text { text-align: center; margin-top: 10px; color: var(--ios-green); font-weight: bold; }
+      #status-text { text-align: center; font-weight: bold; color: var(--ios-green); margin-top: 5px;}
+      
+      /* Consola de errores para ver qué pasa en el móvil */
+      #debug-log { position: fixed; top: 150px; left: 10px; color: yellow; font-size: 10px; z-index: 2000; pointer-events: none; }
     </style>
   </head>
 
   <body>
+    <div id="debug-log">Esperando sensores...</div>
+
     <div class="ui-header">
       <div class="input-container">
-        <input type="text" id="search-input" placeholder="Lugar o Lat, Lng">
-        <button id="main-button">BUSCAR Y ACTIVAR AR</button>
+        <input type="text" id="search-input" placeholder="Ej: Madrid o 40.4,-3.7">
+        <button id="main-button">ACTIVAR BRÚJULA Y BUSCAR</button>
       </div>
-      <div id="status-text">Introduce un destino</div>
+      <div id="status-text">Listo para empezar</div>
     </div>
 
     <div id="guide-arrow">
-      <svg viewBox="0 0 100 100" id="arrow-svg">
+      <svg viewBox="0 0 100 100">
         <path id="arrow-path" d="M50 5 L95 95 L50 75 L5 95 Z" fill="#34c759" stroke="white" stroke-width="3"/>
       </svg>
     </div>
 
     <div class="data-footer">
-      <div><b>MI GPS:</b> <span id="my-coords">...</span></div>
-      <div style="text-align: right;"><b>DESTINO:</b> <span id="dest-coords">...</span></div>
+      <div>GPS: <span id="my-coords">Buscando...</span></div>
+      <div>BRÚJULA: <span id="comp-val">0°</span></div>
     </div>
 
-    <a-scene embedded vr-mode-ui="enabled: false" arjs="sourceType: webcam; debugUIEnabled: false; videoTexture: true;">
+    <a-scene embedded vr-mode-ui="enabled: false" arjs="sourceType: webcam; debugUIEnabled: false;">
       <a-entity id="marker" gps-entity-place="latitude: 0; longitude: 0;" visible="false">
-        <a-cylinder radius="5" height="1000" material="color: #34c759; opacity: 0.6"></a-cylinder>
-        <a-text id="marker-name" value="DESTINO" align="center" scale="60 60 60" position="0 50 0" look-at="[gps-camera]"></a-text>
+        <a-cylinder radius="3" height="100" material="color: #007AFF; opacity: 0.7"></a-cylinder>
       </a-entity>
-      <a-camera id="camera" gps-camera rotation-reader></a-camera>
+      <a-camera gps-camera rotation-reader></a-camera>
     </a-scene>
 
     <script>
-      const mainBtn = document.getElementById('main-button');
+      const log = (msg) => document.getElementById('debug-log').innerText = msg;
       const arrow = document.getElementById('guide-arrow');
-      const arrowPath = document.getElementById('arrow-path');
-      const status = document.getElementById('status-text');
-      const marker = document.getElementById('marker');
-      let dLat, dLng;
+      let dLat, dLng, myLat, myLng;
 
+      // 1. Obtener GPS real continuamente
       navigator.geolocation.watchPosition(p => {
-        document.getElementById('my-coords').innerText = `${p.coords.latitude.toFixed(4)}, ${p.coords.longitude.toFixed(4)}`;
-      }, null, { enableHighAccuracy: true });
+        myLat = p.coords.latitude;
+        myLng = p.coords.longitude;
+        document.getElementById('my-coords').innerText = `${myLat.toFixed(4)}, ${myLng.toFixed(4)}`;
+        log("GPS Activo");
+      }, (err) => log("Error GPS: " + err.message), { enableHighAccuracy: true });
 
-      mainBtn.addEventListener('click', async () => {
-        const scene = document.querySelector('a-scene');
-        if (scene.suspended) scene.resume();
-        if (typeof DeviceOrientationEvent.requestPermission === 'function') { await DeviceOrientationEvent.requestPermission(); }
+      document.getElementById('main-button').addEventListener('click', async () => {
+        // SOLICITAR PERMISOS (CRÍTICO EN IOS)
+        if (typeof DeviceOrientationEvent !== 'undefined' && typeof DeviceOrientationEvent.requestPermission === 'function') {
+          const res = await DeviceOrientationEvent.requestPermission();
+          log("Permiso Brújula: " + res);
+        }
 
         const query = document.getElementById('search-input').value;
-        if (query.includes(',')) {
-          const p = query.split(',');
-          fijarDestino(parseFloat(p[0]), parseFloat(p[1]), "Coordenadas");
-        } else {
-          const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`);
-          const data = await res.json();
-          if (data.length > 0) { 
-            // Usamos el nombre corto para el marcador AR
-            const shortName = data[0].display_name.split(',')[0];
-            fijarDestino(parseFloat(data[0].lat), parseFloat(data[0].lon), shortName); 
-          }
+        if (!query) return alert("Escribe un destino");
+
+        // Buscar coordenadas
+        const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`);
+        const data = await res.json();
+        
+        if (data.length > 0) {
+          dLat = parseFloat(data[0].lat);
+          dLng = parseFloat(data[0].lon);
+          document.getElementById('marker').setAttribute('gps-entity-place', `latitude: ${dLat}; longitude: ${dLng};`);
+          document.getElementById('marker').setAttribute('visible', 'true');
+          arrow.style.display = 'block';
+          document.getElementById('status-text').innerText = "Destino fijado. Gira el móvil.";
+          log("Destino: " + data[0].display_name.split(',')[0]);
         }
       });
 
-      function fijarDestino(lat, lng, name) {
-        dLat = lat; dLng = lng;
-        marker.setAttribute('gps-entity-place', `latitude: ${lat}; longitude: ${lng};`);
-        marker.setAttribute('visible', 'true');
-        document.getElementById('marker-name').setAttribute('value', name.toUpperCase());
-        document.getElementById('dest-coords').innerText = `${lat.toFixed(4)}, ${lng.toFixed(4)}`;
-        
-        // CORRECCIÓN: Actualiza el texto de estado inmediatamente
-        status.innerText = "Gira el móvil para buscar...";
-        status.style.color = "#34c759";
+      // 2. Lógica de Brújula Universal
+      window.addEventListener('deviceorientationabsolute', handleOrientation, true);
+      window.addEventListener('deviceorientation', handleOrientation, true);
 
-        arrow.style.display = 'block';
-        iniciarGuia();
-      }
+      function handleOrientation(e) {
+        let heading = e.webkitCompassHeading || (360 - e.alpha);
+        if (!heading && heading !== 0) return;
 
-      function iniciarGuia() {
-        window.addEventListener('deviceorientation', (e) => {
-          const cam = document.querySelector('[gps-camera]').components['gps-camera'];
-          if (cam && cam.currentCoords && dLat) {
-            const myPos = cam.currentCoords;
-            const rad = Math.PI / 180;
-            const y = Math.sin((dLng - myPos.longitude) * rad) * Math.cos(dLat * rad);
-            const x = Math.cos(myPos.latitude * rad) * Math.sin(dLat * rad) -
-                      Math.sin(myPos.latitude * rad) * Math.cos(dLat * rad) * Math.cos((dLng - myPos.longitude) * rad);
-            let bearing = Math.atan2(y, x) * (180 / Math.PI);
-            
-            const heading = e.webkitCompassHeading || (360 - e.alpha) || 0;
-            let finalRotation = (bearing - heading + 360) % 360;
+        document.getElementById('comp-val').innerText = Math.floor(heading) + "°";
 
-            if (finalRotation < 10 || finalRotation > 350) {
-              arrowPath.setAttribute('fill', '#5AC8FA');
-              arrow.style.transform = `translate(-50%, -50%) rotate(0deg) scale(1.3)`;
-              status.innerText = "🎯 ¡OBJETIVO LOCALIZADO!";
-              status.style.color = "#5AC8FA";
-            } else {
-              arrowPath.setAttribute('fill', '#34c759');
-              arrow.style.transform = `translate(-50%, -50%) rotate(${finalRotation}deg) scale(1)`;
-              status.innerText = "Gira el móvil para buscar...";
-              status.style.color = "#34c759";
-            }
-          }
-        }, true);
+        if (dLat && myLat) {
+          // Calcular rumbo hacia el destino
+          const rad = Math.PI / 180;
+          const y = Math.sin((dLng - myLng) * rad) * Math.cos(dLat * rad);
+          const x = Math.cos(myLat * rad) * Math.sin(dLat * rad) -
+                    Math.sin(myLat * rad) * Math.cos(dLat * rad) * Math.cos((dLng - myLng) * rad);
+          const bearing = (Math.atan2(y, x) * 180 / Math.PI + 360) % 360;
+
+          // Rotación final de la flecha
+          const arrowRotation = (bearing - heading + 360) % 360;
+          arrow.style.transform = `translate(-50%, -50%) rotate(${arrowRotation}deg)`;
+          
+          // Feedback de proximidad visual
+          const diff = ((arrowRotation + 180) % 360) - 180;
+          document.getElementById('arrow-path').setAttribute('fill', Math.abs(diff) < 20 ? '#5AC8FA' : '#34c759');
+        }
       }
     </script>
   </body>
