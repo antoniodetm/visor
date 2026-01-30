@@ -2,92 +2,139 @@
 <html>
   <head>
     <meta charset="utf-8" />
-    <title>Buscador AR con Brújula</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Buscador AR iPhone 12</title>
     <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
     <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar-nft.js"></script>
+    
     <style>
-      body { margin: 0; font-family: -apple-system, sans-serif; }
+      body { margin: 0; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif; }
+      
+      /* Interfaz superior */
       .ui-panel {
-        position: fixed; top: 10px; left: 50%; transform: translateX(-50%);
-        width: 90%; background: rgba(0,0,0,0.7); color: white;
-        padding: 15px; border-radius: 20px; z-index: 100; text-align: center;
+        position: fixed; top: 0; left: 0; width: 100%;
+        background: rgba(0,0,0,0.7); backdrop-filter: blur(15px);
+        color: white; padding: env(safe-area-inset-top) 0 15px 0; z-index: 100; text-align: center;
+        border-bottom: 1px solid rgba(255,255,255,0.2);
       }
-      input { width: 70%; padding: 10px; border-radius: 10px; border: none; }
-      button { padding: 10px; border-radius: 10px; background: #34c759; color: white; border: none; font-weight: bold; }
-      #guide { font-size: 2rem; margin-top: 10px; color: #ffcc00; }
-      .stats { font-size: 0.7rem; margin-top: 5px; opacity: 0.8; }
+      .search-box { margin-top: 10px; display: flex; justify-content: center; gap: 5px; padding: 0 15px; }
+      input { 
+        flex-grow: 1; padding: 12px; border-radius: 12px; border: none; 
+        font-size: 16px; background: rgba(255,255,255,0.2); color: white;
+      }
+      input::placeholder { color: rgba(255,255,255,0.6); }
+      button { 
+        padding: 12px 20px; border-radius: 12px; background: #34c759; 
+        color: white; border: none; font-weight: bold; font-size: 14px;
+      }
+
+      /* Indicadores de estado */
+      #status-msg { margin-top: 10px; font-size: 14px; color: #ffcc00; font-weight: 500; }
+      .gps-debug { font-size: 10px; opacity: 0.6; margin-top: 4px; }
+
+      /* Guía visual central (Brújula) */
+      .compass-guide {
+        position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+        width: 100px; height: 100px; border: 2px dashed rgba(255,255,255,0.4);
+        border-radius: 50%; z-index: 50; pointer-events: none;
+        display: flex; align-items: center; justify-content: center;
+      }
+      .compass-guide::after {
+        content: "瞄"; font-size: 30px; color: rgba(255,255,255,0.3);
+      }
     </style>
   </head>
 
   <body>
     <div class="ui-panel">
-      <input type="text" id="place-name" placeholder="Ej: Torre Eiffel o Madrid">
-      <button onclick="searchPlace()">BUSCAR</button>
-      <div id="guide">↔️ Mira a tu alrededor</div>
-      <div class="stats" id="dist-text">Busca un lugar para empezar</div>
+      <div class="search-box">
+        <input type="text" id="place-name" placeholder="Buscar lugar (ej: Torre Eiffel)">
+        <button onclick="searchPlace()">BUSCAR</button>
+      </div>
+      <div id="status-msg">Toca la pantalla para iniciar</div>
+      <div class="gps-debug" id="gps-info">Esperando satélites GPS...</div>
     </div>
 
-    <a-scene embedded vr-mode-ui="enabled: false" arjs="sourceType: webcam; debugUIEnabled: false;">
+    <div class="compass-guide"></div>
+
+    <a-scene 
+      embedded 
+      vr-mode-ui="enabled: false" 
+      arjs="sourceType: webcam; debugUIEnabled: false; videoTexture: true;"
+    >
       <a-entity id="target" 
                 gps-entity-place="latitude: 0; longitude: 0;" 
-                geometry="primitive: cylinder; radius: 2; height: 50" 
-                material="color: #00ff00; opacity: 0.7"
                 visible="false">
+        <a-cylinder radius="2" height="100" material="color: #34c759; emissive: #34c759; opacity: 0.5"></a-cylinder>
+        <a-text value="DESTINO" align="center" scale="20 20 20" position="0 50 0" look-at="[gps-camera]"></a-text>
       </a-entity>
 
       <a-camera id="camera" gps-camera rotation-reader></a-camera>
     </a-scene>
 
     <script>
-      let destLat, destLng;
-      
-      // Función para buscar por nombre
+      const statusMsg = document.getElementById('status-msg');
+      const gpsInfo = document.getElementById('gps-info');
+      let myLat, myLng;
+
+      // 1. Activar sensores en iPhone tras el primer toque
+      window.addEventListener('click', function() {
+          const scene = document.querySelector('a-scene');
+          if (scene.suspended) scene.resume();
+          
+          // Solicitar permiso explícito para sensores de movimiento en iOS
+          if (typeof DeviceOrientationEvent.requestPermission === 'function') {
+            DeviceOrientationEvent.requestPermission()
+              .then(response => {
+                if (response == 'granted') {
+                  statusMsg.innerText = "Sensores activados. Busca un lugar.";
+                }
+              })
+              .catch(console.error);
+          } else {
+            statusMsg.innerText = "Cámara lista.";
+          }
+      }, { once: true });
+
+      // 2. Rastrear mi posición real
+      navigator.geolocation.watchPosition((pos) => {
+        myLat = pos.coords.latitude;
+        myLng = pos.coords.longitude;
+        gpsInfo.innerText = `Mi posición: ${myLat.toFixed(5)}, ${myLng.toFixed(5)}`;
+      }, (err) => {
+        gpsInfo.innerText = "Error GPS: Asegúrate de activar la ubicación.";
+      }, { enableHighAccuracy: true });
+
+      // 3. Buscar coordenadas por nombre
       async function searchPlace() {
         const query = document.getElementById('place-name').value;
-        const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${query}`);
-        const data = await response.json();
+        if(!query) return;
 
-        if (data.length > 0) {
-          destLat = parseFloat(data[0].lat);
-          destLng = parseFloat(data[0].lon);
-          
-          const target = document.getElementById('target');
-          target.setAttribute('gps-entity-place', `latitude: ${destLat}; longitude: ${destLng};`);
-          target.setAttribute('visible', 'true');
-          
-          alert(`Destino fijado en: ${data[0].display_name}`);
-          startGuiding();
-        } else {
-          alert("No se encontró el lugar.");
+        statusMsg.innerText = "Buscando coordenadas...";
+        statusMsg.style.color = "#ffcc00";
+
+        try {
+          const response = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}`);
+          const data = await response.json();
+
+          if (data && data.length > 0) {
+            const lat = parseFloat(data[0].lat);
+            const lon = parseFloat(data[0].lon);
+            
+            // Actualizar el marcador en el mapa AR
+            const target = document.getElementById('target');
+            target.setAttribute('gps-entity-place', `latitude: ${lat}; longitude: ${lon};`);
+            target.setAttribute('visible', 'true');
+            
+            statusMsg.innerText = `📍 Rumbo a: ${data[0].name || 'Destino'}`;
+            statusMsg.style.color = "#34c759";
+          } else {
+            statusMsg.innerText = "Lugar no encontrado.";
+            statusMsg.style.color = "#ff3b30";
+          }
+        } catch (error) {
+          statusMsg.innerText = "Error de red.";
         }
-      }
-
-      // Lógica para indicar hacia dónde girar
-      function startGuiding() {
-        const camera = document.querySelector('[gps-camera]');
-        const guide = document.getElementById('guide');
-        const distText = document.getElementById('dist-text');
-
-        camera.addEventListener('gps-camera-update-position', (e) => {
-          // Calculamos la distancia
-          const dist = e.detail.distance.toFixed(0);
-          distText.innerText = `Distancia aproximada: ${dist} metros`;
-        });
-
-        // Evento que se dispara al mirar hacia el objeto
-        window.addEventListener('deviceorientation', (event) => {
-          // Aquí AR.js maneja la rotación interna, pero podemos 
-          // simplificarlo: si el objeto no está en pantalla, 
-          // el usuario debe seguir rotando.
-          // En iPhone 12, el objeto aparecerá automáticamente en su sitio real.
-        });
-      }
-
-      // Hack para iPhone: Solicitar permisos de orientación
-      if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-        document.body.addEventListener('click', () => {
-          DeviceOrientationEvent.requestPermission();
-        }, { once: true });
       }
     </script>
   </body>
