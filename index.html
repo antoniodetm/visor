@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover" />
-    <title>AR Quick Response</title>
+    <title>AR Ultra Feedback</title>
     <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
     <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar-nft.js"></script>
     
@@ -11,49 +11,58 @@
       :root { --safe-top: env(safe-area-inset-top); --safe-bottom: env(safe-area-inset-bottom); }
       body { margin: 0; overflow: hidden; font-family: -apple-system, sans-serif; background: #000; }
       
-      .ui-header { position: fixed; top: calc(10px + var(--safe-top)); left: 50%; transform: translateX(-50%); z-index: 1000; width: 90%; }
-      .search-box { display: flex; background: rgba(0,0,0,0.8); backdrop-filter: blur(10px); padding: 8px; border-radius: 18px; border: 1px solid rgba(255,255,255,0.2); }
+      /* Buscador Estilo Glassmorphism */
+      .ui-header { position: fixed; top: calc(15px + var(--safe-top)); left: 50%; transform: translateX(-50%); z-index: 1000; width: 92%; }
+      .search-box { display: flex; background: rgba(255, 255, 255, 0.15); backdrop-filter: blur(15px); padding: 6px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.3); }
       input { flex: 1; background: transparent; border: none; color: white; padding: 12px; font-size: 17px; outline: none; }
-      button { background: #007AFF; color: white; border: none; border-radius: 12px; padding: 0 20px; font-weight: bold; }
+      input::placeholder { color: rgba(255,255,255,0.6); }
+      button { background: #34C759; color: white; border: none; border-radius: 15px; padding: 0 20px; font-weight: bold; }
 
-      .ui-footer { position: fixed; bottom: calc(40px + var(--safe-bottom)); left: 50%; transform: translateX(-50%); z-index: 1000; text-align: center; }
-      /* Flecha con aceleración por hardware */
-      #arrow-svg { 
-        width: 120px; height: 120px; 
-        will-change: transform; 
-        transition: transform 0.05s linear; /* Transición ultra rápida */
+      /* Mirilla Central */
+      .crosshair {
+        position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+        width: 40px; height: 40px; border: 2px solid rgba(255,255,255,0.5);
+        border-radius: 50%; z-index: 999; pointer-events: none;
       }
-      .info-pill { margin-top: 15px; background: rgba(0,0,0,0.7); color: #00FF00; padding: 8px 20px; border-radius: 20px; font-weight: bold; font-size: 14px; }
+      .crosshair::after { content: ''; position: absolute; top: 50%; left: 50%; width: 4px; height: 4px; background: white; border-radius: 50%; transform: translate(-50%, -50%); }
+
+      /* Guía de flecha */
+      .ui-footer { position: fixed; bottom: calc(40px + var(--safe-bottom)); left: 50%; transform: translateX(-50%); z-index: 1000; text-align: center; }
+      #arrow-svg { width: 100px; height: 100px; will-change: transform; transition: transform 0.05s linear; }
+      .info-pill { margin-top: 10px; background: rgba(52, 199, 89, 0.9); color: white; padding: 10px 25px; border-radius: 30px; font-weight: 800; box-shadow: 0 4px 15px rgba(0,0,0,0.4); }
     </style>
   </head>
 
   <body>
+    <div class="crosshair" id="crosshair"></div>
+    
     <div class="ui-header">
       <div class="search-box">
-        <input type="text" id="placeName" placeholder="Buscar lugar...">
-        <button onclick="buscarLugar()">IR</button>
+        <input type="text" id="placeName" placeholder="¿Qué buscas?" autocomplete="off">
+        <button onclick="buscarLugar()">BUSCAR</button>
       </div>
     </div>
 
     <div class="ui-footer" id="guideUI" style="visibility: hidden;">
       <svg id="arrow-svg" viewBox="0 0 100 100">
-        <polygon points="50,5 90,90 50,75 10,90" fill="#00FF00" />
+        <path d="M50 10 L90 90 L50 70 L10 90 Z" fill="#34C759" stroke="white" stroke-width="2"/>
       </svg>
-      <div id="dist-text" class="info-pill">Calculando...</div>
+      <div id="dist-text" class="info-pill">DISTANCIA</div>
     </div>
 
     <a-scene vr-mode-ui="enabled: false" embedded arjs="sourceType: webcam; debugUIEnabled: false; videoTexture: true;">
-      <a-entity id="target-anchor">
-        <a-text id="marker-label" value="" look-at="[gps-camera]" scale="50 50 50" align="center" color="yellow"></a-text>
+      <a-entity id="marker-visual" gps-entity-place="latitude: 0; longitude: 0;" visible="false">
+        <a-cylinder height="2000" radius="15" material="color: #34C759; shader: flat; opacity: 0.3; transparent: true;" position="0 1000 0"></a-cylinder>
+        <a-text id="marker-label" value="" look-at="[gps-camera]" scale="100 100 100" position="0 50 0" align="center" color="#34C759"></a-text>
       </a-entity>
-      <a-camera gps-camera="simulateAltitude: 1.6" rotation-reader></a-camera>
+      
+      <a-camera gps-camera rotation-reader></a-camera>
     </a-scene>
 
     <script>
-      let destLat, destLon;
-      let currentBearing = 0; // Ángulo hacia el destino relativo al Norte
+      let destLat, destLon, currentBearing = 0;
       const arrow = document.getElementById('arrow-svg');
-      const distText = document.getElementById('dist-text');
+      const crosshair = document.getElementById('crosshair');
 
       async function buscarLugar() {
         const query = document.getElementById('placeName').value;
@@ -64,57 +73,55 @@
           destLat = parseFloat(data[0].lat);
           destLon = parseFloat(data[0].lon);
           
-          document.getElementById('marker-label').setAttribute('value', data[0].display_name.split(',')[0]);
+          const visual = document.getElementById('marker-visual');
+          visual.setAttribute('gps-entity-place', `latitude: ${destLat}; longitude: ${destLon};`);
+          document.getElementById('marker-label').setAttribute('value', data[0].display_name.split(',')[0].toUpperCase());
+          visual.setAttribute('visible', 'true');
           document.getElementById('guideUI').style.visibility = 'visible';
           
-          solicitarPermisosiOS();
-          actualizarPosicionGPS(); // Carga inicial
+          solicitarPermisos();
         }
       }
 
-      function solicitarPermisosiOS() {
+      function solicitarPermisos() {
         if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-          DeviceOrientationEvent.requestPermission().then(state => {
-            if (state === 'granted') window.addEventListener('deviceorientation', handleRotation, true);
-          });
+          DeviceOrientationEvent.requestPermission().then(s => { if(s=='granted') window.addEventListener('deviceorientation', handleRotation, true); });
+        } else { window.addEventListener('deviceorientation', handleRotation, true); }
+        iniciarGPS();
+      }
+
+      function handleRotation(e) {
+        if (!destLat) return;
+        let heading = e.webkitCompassHeading || (360 - e.alpha);
+        let diff = (currentBearing - heading + 360) % 360;
+        let finalRotation = diff > 180 ? diff - 360 : diff;
+
+        // Movimiento de flecha
+        arrow.style.transform = `rotate(${finalRotation}deg)`;
+
+        // EFECTO "ENCONTRADO": Si la flecha apunta al centro (margen 10 grados)
+        if (Math.abs(finalRotation) < 15) {
+          crosshair.style.borderColor = "#34C759";
+          crosshair.style.transform = "translate(-50%, -50%) scale(1.2)";
+          // VIBRACIÓN HÁPTICA (Solo funciona en iPhone si hay interacción previa)
+          if (Math.abs(finalRotation) < 5) window.navigator.vibrate(10); 
         } else {
-          window.addEventListener('deviceorientation', handleRotation, true);
+          crosshair.style.borderColor = "rgba(255,255,255,0.5)";
+          crosshair.style.transform = "translate(-50%, -50%) scale(1)";
         }
       }
 
-      // 1. ACTUALIZACIÓN DE BRÚJULA (60fps - Instantánea)
-      function handleRotation(event) {
-        if (!destLat) return;
-
-        //webkitCompassHeading es el más preciso y rápido en iPhone
-        let heading = event.webkitCompassHeading || (360 - event.alpha);
-        
-        // Calculamos la rotación de la flecha
-        // (Ángulo al destino - Hacia donde apunta el móvil)
-        let arrowRotation = currentBearing - heading;
-        
-        // Aplicamos la transformación usando requestAnimationFrame para máxima fluidez
-        requestAnimationFrame(() => {
-          arrow.style.transform = `rotate(${arrowRotation}deg)`;
-        });
-      }
-
-      // 2. ACTUALIZACIÓN DE GPS (Segundo plano - Lenta pero necesaria)
-      function actualizarPosicionGPS() {
+      function iniciarGPS() {
         navigator.geolocation.watchPosition((pos) => {
           const uLat = pos.coords.latitude;
           const uLon = pos.coords.longitude;
-
-          // Recalcular el rumbo (Bearing) solo cuando el GPS se mueve
           const y = Math.sin(toRadians(destLon - uLon)) * Math.cos(toRadians(destLat));
           const x = Math.cos(toRadians(uLat)) * Math.sin(toRadians(destLat)) -
                     Math.sin(toRadians(uLat)) * Math.cos(toRadians(destLat)) * Math.cos(toRadians(destLon - uLon));
-          
           currentBearing = (toDegrees(Math.atan2(y, x)) + 360) % 360;
-
-          // Actualizar texto de distancia
+          
           const d = calcDist(uLat, uLon, destLat, destLon);
-          distText.innerText = d > 1 ? `${d.toFixed(1)} km` : `${(d*1000).toFixed(0)} m`;
+          document.getElementById('dist-text').innerText = d > 1 ? `${d.toFixed(1)} KM` : `${(d*1000).toFixed(0)} METROS`;
         }, null, { enableHighAccuracy: true });
       }
 
