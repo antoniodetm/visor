@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover" />
-    <title>AR Nearby Radar</title>
+    <title>AR Discovery Radar</title>
     <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
     <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar-nft.js"></script>
     
@@ -11,37 +11,50 @@
       :root { --safe-top: env(safe-area-inset-top); --safe-bottom: env(safe-area-inset-bottom); }
       body { margin: 0; overflow: hidden; font-family: -apple-system, sans-serif; background: #000; }
 
-      /* Panel Superior: Estado */
-      .ui-top { 
+      /* Estado Superior */
+      .ui-header { 
         position: fixed; top: 0; left: 0; right: 0; z-index: 1000; 
-        background: rgba(0, 0, 0, 0.7); backdrop-filter: blur(10px);
+        background: rgba(0, 0, 0, 0.8); backdrop-filter: blur(10px);
         padding: calc(15px + var(--safe-top)) 20px 15px 20px;
-        text-align: center; border-bottom: 1px solid rgba(255,255,255,0.2);
+        border-bottom: 2px solid #34C759;
       }
-      .status-text { color: #34C759; font-weight: 800; font-size: 22px; text-transform: uppercase; letter-spacing: 1px; }
+      .status-title { color: #34C759; font-weight: 900; font-size: 20px; text-transform: uppercase; }
 
-      /* Panel Inferior: Coordenadas */
-      .ui-bottom {
+      /* LISTA DE LUGARES EN PANTALLA */
+      .places-list {
+        position: fixed; top: calc(100px + var(--safe-top)); left: 15px;
+        z-index: 1000; width: 70%; max-width: 300px;
+        display: flex; flex-direction: column; gap: 8px;
+      }
+      .place-item {
+        background: rgba(0, 0, 0, 0.6); backdrop-filter: blur(8px);
+        color: white; padding: 12px 15px; border-radius: 12px;
+        border-left: 4px solid #00D2FF; font-size: 16px; font-weight: 600;
+        animation: slideIn 0.5s ease-out;
+      }
+      @keyframes slideIn { from { opacity: 0; transform: translateX(-20px); } to { opacity: 1; transform: translateX(0); } }
+
+      /* Coordenadas Inferiores */
+      .ui-footer {
         position: fixed; bottom: 0; left: 0; right: 0; z-index: 1000;
-        background: rgba(0, 0, 0, 0.8); backdrop-filter: blur(15px);
-        padding: 15px 20px calc(15px + var(--safe-bottom)) 20px;
+        background: rgba(0, 0, 0, 0.85); padding: 15px 20px calc(15px + var(--safe-bottom)) 20px;
         border-top: 1px solid rgba(255,255,255,0.2);
       }
-      .coord-info { display: flex; justify-content: space-between; color: #00D2FF; font-family: monospace; font-size: 16px; font-weight: bold; }
-      .list-title { color: #aaa; font-size: 12px; margin-bottom: 5px; display: block; font-weight: 600; }
+      .coord-info { display: flex; justify-content: space-between; color: #00D2FF; font-family: monospace; font-size: 14px; }
     </style>
   </head>
 
   <body>
-    <div class="ui-top">
-      <div id="status" class="status-text">Iniciando Radar...</div>
+    <div class="ui-header">
+      <div id="status" class="status-title">ESCANEANDO ENTORNO...</div>
     </div>
 
-    <div class="ui-bottom">
-      <span class="list-title">MI POSICIÓN ACTUAL:</span>
+    <div id="places-container" class="places-list"></div>
+
+    <div class="ui-footer">
       <div class="coord-info">
-        <span id="lat">0.00000</span>
-        <span id="lon">0.00000</span>
+        <span>LAT: <span id="lat">0.00</span></span>
+        <span>LON: <span id="lon">0.00</span></span>
       </div>
     </div>
 
@@ -55,28 +68,24 @@
 
     <script>
       const status = document.getElementById('status');
+      const placesContainer = document.getElementById('places-container');
       const scene = document.querySelector('a-scene');
-      let placesLoaded = false;
 
-      // 1. Obtener ubicación inicial
       navigator.geolocation.getCurrentPosition((pos) => {
         const lat = pos.coords.latitude;
         const lon = pos.coords.longitude;
-        document.getElementById('lat').innerText = lat.toFixed(5);
-        document.getElementById('lon').innerText = lon.toFixed(5);
+        document.getElementById('lat').innerText = lat.toFixed(4);
+        document.getElementById('lon').innerText = lon.toFixed(4);
         
-        loadNearbyPlaces(lat, lon);
+        fetchPlaces(lat, lon);
       }, (err) => {
-        status.innerText = "Error GPS: Activa ubicación";
-        status.style.color = "red";
-      }, { enableHighAccuracy: true });
+        status.innerText = "ERROR: ACTIVA GPS";
+        status.style.color = "#FF3B30";
+      });
 
-      // 2. Buscar lugares usando Overpass API (OpenStreetMap)
-      async function loadNearbyPlaces(lat, lon) {
-        status.innerText = "Escaneando entorno...";
-        
-        // Buscamos puntos de interés (amenity) en un radio de 500m
-        const query = `[out:json];node(around:500,${lat},${lon})[amenity];out 5;`;
+      async function fetchPlaces(lat, lon) {
+        // Busca 5 lugares de cualquier tipo (restaurantes, tiendas, etc) en 500m
+        const query = `[out:json];node(around:500,${lat},${lon})[name][amenity];out 5;`;
         const url = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`;
 
         try {
@@ -84,40 +93,43 @@
           const data = await response.json();
           
           if (data.elements.length > 0) {
-            renderPlaces(data.elements);
-            status.innerText = "Radar Activo: 5 Lugares";
+            status.innerText = "LUGARES DETECTADOS";
+            renderRadar(data.elements);
           } else {
-            status.innerText = "No hay lugares cerca";
+            status.innerText = "NO HAY LUGARES CERCA";
           }
         } catch (e) {
-          status.innerText = "Error de conexión";
+          status.innerText = "ERROR DE CONEXIÓN";
         }
       }
 
-      // 3. Dibujar los lugares en el espacio AR
-      function renderPlaces(elements) {
+      function renderRadar(elements) {
         elements.forEach((el) => {
-          const name = el.tags.name || el.tags.amenity || "Lugar";
-          
-          // Crear Entidad de Texto
+          const name = el.tags.name;
+
+          // 1. Escribir en la lista de pantalla
+          const item = document.createElement('div');
+          item.className = 'place-item';
+          item.innerText = name.toUpperCase();
+          placesContainer.appendChild(item);
+
+          // 2. Colocar en Realidad Aumentada
           const text = document.createElement('a-text');
           text.setAttribute('value', name.toUpperCase());
-          text.setAttribute('scale', '100 100 100');
+          text.setAttribute('scale', '120 120 120');
           text.setAttribute('look-at', '[gps-camera]');
           text.setAttribute('align', 'center');
           text.setAttribute('color', '#34C759');
           text.setAttribute('gps-entity-place', `latitude: ${el.lat}; longitude: ${el.lon};`);
-          text.setAttribute('position', '0 30 0');
+          text.setAttribute('position', '0 40 0');
 
-          // Crear Esfera o Icono debajo del texto
-          const point = document.createElement('a-sphere');
-          point.setAttribute('radius', '10');
-          point.setAttribute('color', '#00D2FF');
-          point.setAttribute('opacity', '0.7');
-          point.setAttribute('gps-entity-place', `latitude: ${el.lat}; longitude: ${el.lon};`);
+          const sphere = document.createElement('a-sphere');
+          sphere.setAttribute('radius', '15');
+          sphere.setAttribute('color', '#00D2FF');
+          sphere.setAttribute('gps-entity-place', `latitude: ${el.lat}; longitude: ${el.lon};`);
 
           scene.appendChild(text);
-          scene.appendChild(point);
+          scene.appendChild(sphere);
         });
       }
     </script>
