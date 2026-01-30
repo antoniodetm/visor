@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover" />
-    <title>AR Ultra Feedback</title>
+    <title>AR Arrow Navigator</title>
     <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
     <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar-nft.js"></script>
     
@@ -11,61 +11,85 @@
       :root { --safe-top: env(safe-area-inset-top); --safe-bottom: env(safe-area-inset-bottom); }
       body { margin: 0; overflow: hidden; font-family: -apple-system, sans-serif; background: #000; }
       
-      /* Buscador Estilo Glassmorphism */
-      .ui-header { position: fixed; top: calc(15px + var(--safe-top)); left: 50%; transform: translateX(-50%); z-index: 1000; width: 92%; }
-      .search-box { display: flex; background: rgba(255, 255, 255, 0.15); backdrop-filter: blur(15px); padding: 6px; border-radius: 20px; border: 1px solid rgba(255,255,255,0.3); }
+      /* Buscador superior */
+      .ui-header { position: fixed; top: calc(15px + var(--safe-top)); left: 50%; transform: translateX(-50%); z-index: 1000; width: 90%; }
+      .search-box { display: flex; background: rgba(0,0,0,0.8); backdrop-filter: blur(10px); padding: 8px; border-radius: 15px; border: 1px solid rgba(255,255,255,0.2); }
       input { flex: 1; background: transparent; border: none; color: white; padding: 12px; font-size: 17px; outline: none; }
-      input::placeholder { color: rgba(255,255,255,0.6); }
-      button { background: #34C759; color: white; border: none; border-radius: 15px; padding: 0 20px; font-weight: bold; }
+      button { background: #007AFF; color: white; border: none; border-radius: 10px; padding: 0 20px; font-weight: bold; }
 
-      /* Mirilla Central */
-      .crosshair {
-        position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-        width: 40px; height: 40px; border: 2px solid rgba(255,255,255,0.5);
-        border-radius: 50%; z-index: 999; pointer-events: none;
+      /* Contenedor de la Flecha */
+      .arrow-container {
+        position: fixed;
+        bottom: calc(50px + var(--safe-bottom));
+        left: 50%;
+        transform: translateX(-50%);
+        z-index: 1000;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        pointer-events: none;
       }
-      .crosshair::after { content: ''; position: absolute; top: 50%; left: 50%; width: 4px; height: 4px; background: white; border-radius: 50%; transform: translate(-50%, -50%); }
 
-      /* Guía de flecha */
-      .ui-footer { position: fixed; bottom: calc(40px + var(--safe-bottom)); left: 50%; transform: translateX(-50%); z-index: 1000; text-align: center; }
-      #arrow-svg { width: 100px; height: 100px; will-change: transform; transition: transform 0.05s linear; }
-      .info-pill { margin-top: 10px; background: rgba(52, 199, 89, 0.9); color: white; padding: 10px 25px; border-radius: 30px; font-weight: 800; box-shadow: 0 4px 15px rgba(0,0,0,0.4); }
+      #arrow-svg {
+        width: 140px;
+        height: 140px;
+        will-change: transform, filter;
+        transition: transform 0.05s linear, filter 0.2s, opacity 0.3s;
+        filter: drop-shadow(0 0 5px rgba(0,0,0,0.5));
+      }
+
+      .dist-label {
+        margin-top: 15px;
+        background: rgba(0,0,0,0.8);
+        color: white;
+        padding: 8px 20px;
+        border-radius: 20px;
+        font-weight: bold;
+        font-size: 16px;
+        border: 1px solid rgba(255,255,255,0.2);
+      }
     </style>
   </head>
 
   <body>
-    <div class="crosshair" id="crosshair"></div>
-    
     <div class="ui-header">
       <div class="search-box">
-        <input type="text" id="placeName" placeholder="¿Qué buscas?" autocomplete="off">
-        <button onclick="buscarLugar()">BUSCAR</button>
+        <input type="text" id="placeName" placeholder="¿A dónde vamos?" spellcheck="false">
+        <button onclick="buscarLugar()">IR</button>
       </div>
     </div>
 
-    <div class="ui-footer" id="guideUI" style="visibility: hidden;">
+    <div class="arrow-container" id="arrowUI" style="visibility: hidden;">
       <svg id="arrow-svg" viewBox="0 0 100 100">
-        <path d="M50 10 L90 90 L50 70 L10 90 Z" fill="#34C759" stroke="white" stroke-width="2"/>
+        <defs>
+          <linearGradient id="arrowGrad" x1="0%" y1="0%" x2="0%" y2="100%">
+            <stop offset="0%" style="stop-color:#34C759;stop-opacity:1" />
+            <stop offset="100%" style="stop-color:#248A3D;stop-opacity:1" />
+          </linearGradient>
+        </defs>
+        <path d="M50 5 L95 95 L50 75 L5 95 Z" fill="url(#arrowGrad)" stroke="white" stroke-width="2"/>
       </svg>
-      <div id="dist-text" class="info-pill">DISTANCIA</div>
+      <div id="dist-text" class="dist-label">0 m</div>
     </div>
 
     <a-scene vr-mode-ui="enabled: false" embedded arjs="sourceType: webcam; debugUIEnabled: false; videoTexture: true;">
-      <a-entity id="marker-visual" gps-entity-place="latitude: 0; longitude: 0;" visible="false">
-        <a-cylinder height="2000" radius="15" material="color: #34C759; shader: flat; opacity: 0.3; transparent: true;" position="0 1000 0"></a-cylinder>
-        <a-text id="marker-label" value="" look-at="[gps-camera]" scale="100 100 100" position="0 50 0" align="center" color="#34C759"></a-text>
+      <a-entity id="target-anchor">
+        <a-sphere radius="10" color="#34C759" opacity="0.6" gps-entity-place="latitude: 0; longitude: 0;"></a-sphere>
+        <a-text id="marker-label" value="" look-at="[gps-camera]" scale="80 80 80" position="0 25 0" align="center"></a-text>
       </a-entity>
-      
       <a-camera gps-camera rotation-reader></a-camera>
     </a-scene>
 
     <script>
       let destLat, destLon, currentBearing = 0;
       const arrow = document.getElementById('arrow-svg');
-      const crosshair = document.getElementById('crosshair');
+      const arrowUI = document.getElementById('arrowUI');
+      const distText = document.getElementById('dist-text');
 
       async function buscarLugar() {
         const query = document.getElementById('placeName').value;
+        if (!query) return;
+
         const res = await fetch(`https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1`);
         const data = await res.json();
 
@@ -73,56 +97,63 @@
           destLat = parseFloat(data[0].lat);
           destLon = parseFloat(data[0].lon);
           
-          const visual = document.getElementById('marker-visual');
-          visual.setAttribute('gps-entity-place', `latitude: ${destLat}; longitude: ${destLon};`);
-          document.getElementById('marker-label').setAttribute('value', data[0].display_name.split(',')[0].toUpperCase());
-          visual.setAttribute('visible', 'true');
-          document.getElementById('guideUI').style.visibility = 'visible';
+          document.getElementById('target-anchor').children[0].setAttribute('gps-entity-place', `latitude: ${destLat}; longitude: ${destLon};`);
+          document.getElementById('marker-label').setAttribute('value', data[0].display_name.split(',')[0]);
           
-          solicitarPermisos();
+          arrowUI.style.visibility = 'visible';
+          activarSensores();
         }
       }
 
-      function solicitarPermisos() {
+      function activarSensores() {
         if (typeof DeviceOrientationEvent.requestPermission === 'function') {
-          DeviceOrientationEvent.requestPermission().then(s => { if(s=='granted') window.addEventListener('deviceorientation', handleRotation, true); });
-        } else { window.addEventListener('deviceorientation', handleRotation, true); }
-        iniciarGPS();
-      }
-
-      function handleRotation(e) {
-        if (!destLat) return;
-        let heading = e.webkitCompassHeading || (360 - e.alpha);
-        let diff = (currentBearing - heading + 360) % 360;
-        let finalRotation = diff > 180 ? diff - 360 : diff;
-
-        // Movimiento de flecha
-        arrow.style.transform = `rotate(${finalRotation}deg)`;
-
-        // EFECTO "ENCONTRADO": Si la flecha apunta al centro (margen 10 grados)
-        if (Math.abs(finalRotation) < 15) {
-          crosshair.style.borderColor = "#34C759";
-          crosshair.style.transform = "translate(-50%, -50%) scale(1.2)";
-          // VIBRACIÓN HÁPTICA (Solo funciona en iPhone si hay interacción previa)
-          if (Math.abs(finalRotation) < 5) window.navigator.vibrate(10); 
+          DeviceOrientationEvent.requestPermission().then(s => {
+            if(s === 'granted') window.addEventListener('deviceorientation', updateUI, true);
+          });
         } else {
-          crosshair.style.borderColor = "rgba(255,255,255,0.5)";
-          crosshair.style.transform = "translate(-50%, -50%) scale(1)";
+          window.addEventListener('deviceorientation', updateUI, true);
         }
-      }
-
-      function iniciarGPS() {
-        navigator.geolocation.watchPosition((pos) => {
+        
+        navigator.geolocation.watchPosition(pos => {
           const uLat = pos.coords.latitude;
           const uLon = pos.coords.longitude;
+          
+          // Calcular rumbo (Bearing)
           const y = Math.sin(toRadians(destLon - uLon)) * Math.cos(toRadians(destLat));
           const x = Math.cos(toRadians(uLat)) * Math.sin(toRadians(destLat)) -
                     Math.sin(toRadians(uLat)) * Math.cos(toRadians(destLat)) * Math.cos(toRadians(destLon - uLon));
           currentBearing = (toDegrees(Math.atan2(y, x)) + 360) % 360;
-          
+
+          // Distancia
           const d = calcDist(uLat, uLon, destLat, destLon);
-          document.getElementById('dist-text').innerText = d > 1 ? `${d.toFixed(1)} KM` : `${(d*1000).toFixed(0)} METROS`;
+          distText.innerText = d > 1 ? `${d.toFixed(1)} km` : `${(d*1000).toFixed(0)} m`;
         }, null, { enableHighAccuracy: true });
+      }
+
+      function updateUI(e) {
+        if (!destLat) return;
+
+        let heading = e.webkitCompassHeading || (360 - e.alpha);
+        let diff = (currentBearing - heading + 360) % 360;
+        let rotation = diff > 180 ? diff - 360 : diff;
+
+        // 1. Rotar flecha
+        arrow.style.transform = `rotate(${rotation}deg)`;
+
+        // 2. Feedback visual y háptico
+        const error = Math.abs(rotation);
+        
+        if (error < 15) { // Estás apuntando casi directo
+          arrow.style.filter = "drop-shadow(0 0 15px #34C759) brightness(1.2)";
+          arrow.style.opacity = "1";
+          if (error < 5) window.navigator.vibrate(15); // Vibración fina
+        } else if (error > 150) { // El lugar está detrás de ti
+          arrow.style.opacity = "0.4";
+          arrow.style.filter = "grayscale(0.5)";
+        } else {
+          arrow.style.opacity = "0.8";
+          arrow.style.filter = "drop-shadow(0 0 2px rgba(0,0,0,0.5))";
+        }
       }
 
       function toRadians(d) { return d * Math.PI / 180; }
