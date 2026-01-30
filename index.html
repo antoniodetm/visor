@@ -3,77 +3,70 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover" />
-    <title>AR Horizon Scanner</title>
+    <title>AR Horizon Scanner - Top 5</title>
     <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
     <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar-nft.js"></script>
     
     <style>
       :root { --safe-top: env(safe-area-inset-top); --safe-bottom: env(safe-area-inset-bottom); }
-      body { margin: 0; overflow: hidden; font-family: -apple-system, sans-serif; background: #000; }
+      body { margin: 0; overflow: hidden; font-family: -apple-system, BlinkMacSystemFont, sans-serif; background: #000; color: white; }
 
-      /* Estado Superior */
-      .ui-header { 
+      /* HUD Superior */
+      .hud-header { 
         position: fixed; top: 0; left: 0; right: 0; z-index: 1000; 
-        background: rgba(0, 0, 0, 0.5); backdrop-filter: blur(10px);
-        padding: calc(15px + var(--safe-top)) 20px 15px 20px;
-        text-align: center; border-bottom: 1px solid rgba(255,255,255,0.2);
+        background: linear-gradient(to bottom, rgba(0,0,0,0.8), transparent);
+        padding: calc(20px + var(--safe-top)) 20px 10px;
+        text-align: center;
       }
-      .radar-title { color: white; font-weight: 800; font-size: 16px; letter-spacing: 2px; opacity: 0.8; }
+      .radar-line { width: 60%; height: 2px; background: #FF9500; margin: 10px auto; box-shadow: 0 0 10px #FF9500; }
 
-      /* NOTIFICACIÓN DE PUEBLO DETECTADO */
-      .detection-overlay {
+      /* CONTENEDOR DE RESULTADOS DINÁMICOS */
+      .results-container {
         position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
-        z-index: 1000; width: 85%; pointer-events: none; text-align: center;
+        width: 90%; z-index: 1000; display: flex; flex-direction: column; gap: 15px;
+        pointer-events: none;
       }
-      
-      .town-name {
-        font-size: 42px; font-weight: 900; color: #FF9500;
-        text-shadow: 0 0 20px rgba(0,0,0,0.8), 0 0 10px rgba(255,149,0,0.5);
-        opacity: 0; transition: opacity 0.2s ease, transform 0.2s ease;
-        transform: scale(0.8); text-transform: uppercase;
-      }
-      
-      .town-name.visible { opacity: 1; transform: scale(1); }
 
-      .distance-info {
-        color: white; font-size: 18px; font-weight: 600; margin-top: 10px;
-        background: rgba(0,0,0,0.5); padding: 5px 15px; border-radius: 20px;
-        display: inline-block; opacity: 0; transition: opacity 0.2s;
+      .town-card {
+        background: rgba(0, 0, 0, 0.6); backdrop-filter: blur(10px);
+        border-left: 5px solid #FF9500; padding: 15px 20px; border-radius: 0 15px 15px 0;
+        display: flex; justify-content: space-between; align-items: center;
+        transition: all 0.3s ease; opacity: 0; transform: translateX(-20px);
       }
-      .distance-info.visible { opacity: 1; }
+      .town-card.visible { opacity: 1; transform: translateX(0); }
 
-      /* Guía visual central */
-      .scanner-line {
-        position: fixed; top: 50%; left: 0; right: 0; height: 2px;
-        background: linear-gradient(90deg, transparent, #FF9500, transparent);
-        z-index: 999; opacity: 0.4;
+      .town-info h2 { margin: 0; font-size: 22px; font-weight: 900; color: #FF9500; text-transform: uppercase; }
+      .town-info p { margin: 2px 0 0; font-size: 14px; color: #aaa; font-weight: 600; }
+      .distance-tag { font-size: 24px; font-weight: 900; color: white; font-family: monospace; }
+
+      /* Punto de mira */
+      .crosshair {
+        position: fixed; top: 50%; left: 50%; transform: translate(-50%, -50%);
+        width: 30px; height: 30px; border: 2px solid rgba(255,149,0,0.5); border-radius: 50%;
+        z-index: 500; pointer-events: none;
       }
     </style>
   </head>
 
   <body>
-    <div class="ui-header">
-      <div class="radar-title">ESCÁNER DE HORIZONTE ACTIVO</div>
+    <div class="hud-header">
+      <div style="font-weight: 800; letter-spacing: 3px; font-size: 14px;">SCANNING SECTOR</div>
+      <div class="radar-line"></div>
     </div>
 
-    <div class="scanner-line"></div>
+    <div class="crosshair"></div>
 
-    <div class="detection-overlay">
-      <div id="town-display" class="town-name">BUSCANDO...</div>
-      <br>
-      <div id="dist-display" class="distance-info">---</div>
-    </div>
+    <div id="results-container" class="results-container"></div>
 
     <a-scene vr-mode-ui="enabled: false" embedded arjs="sourceType: webcam; debugUIEnabled: false; videoTexture: true;">
       <a-camera gps-camera rotation-reader></a-camera>
     </a-scene>
 
     <script>
-      let pueblos = [];
-      const display = document.getElementById('town-display');
-      const distDisplay = document.getElementById('dist-display');
+      let databasePueblos = [];
+      const container = document.getElementById('results-container');
 
-      // 1. Localizar y buscar pueblos en un radio de 30km
+      // 1. Obtener datos iniciales (Radio de 50km para encontrar más opciones)
       navigator.geolocation.getCurrentPosition((pos) => {
         const lat = pos.coords.latitude;
         const lon = pos.coords.longitude;
@@ -82,70 +75,81 @@
         if (typeof DeviceOrientationEvent.requestPermission === 'function') {
           DeviceOrientationEvent.requestPermission();
         }
-        window.addEventListener('deviceorientation', scanHorizon, true);
+        window.addEventListener('deviceorientation', handleOrientation, true);
       });
 
       async function fetchPueblos(lat, lon) {
-        // Buscamos núcleos urbanos en 30km
-        const query = `[out:json];node(around:30000,${lat},${lon})["place"~"city|town|village|hamlet"];out 15;`;
+        const query = `[out:json];node(around:50000,${lat},${lon})["place"~"city|town|village|hamlet"];out 40;`;
         const url = `https://overpass-api.de/api/interpreter?data=${encodeURIComponent(query)}`;
-
         try {
           const res = await fetch(url);
           const data = await res.json();
-          pueblos = data.elements.map(el => ({
-            name: el.tags.name ? el.tags.name.toUpperCase() : "PUEBLO DESCONOCIDO",
+          databasePueblos = data.elements.map(el => ({
+            name: el.tags.name ? el.tags.name.toUpperCase() : "NÚCLEO URBANO",
             lat: el.lat,
             lon: el.lon,
-            dist: 0
+            tipo: (el.tags.place || "Pueblo").toUpperCase()
           }));
-        } catch (e) { console.error("Error cargando datos geográficos"); }
+        } catch (e) { console.error("Error en API Geográfica"); }
       }
 
-      function scanHorizon(e) {
-        if (pueblos.length === 0) return;
+      function handleOrientation(e) {
+        if (databasePueblos.length === 0) return;
 
         let heading = e.webkitCompassHeading || (360 - e.alpha);
-        let puebloDetectado = null;
-        let minimaDistanciaAngular = 12; // Sensibilidad de la mirada (grados)
 
         navigator.geolocation.getCurrentPosition((pos) => {
           const uLat = pos.coords.latitude;
           const uLon = pos.coords.longitude;
 
-          pueblos.forEach(p => {
+          // Calcular rumbo y distancia para cada pueblo
+          const listadoConAngulo = databasePueblos.map(p => {
             const y = Math.sin(toRadians(p.lon - uLon)) * Math.cos(toRadians(p.lat));
             const x = Math.cos(toRadians(uLat)) * Math.sin(toRadians(p.lat)) -
                       Math.sin(toRadians(uLat)) * Math.cos(toRadians(p.lat)) * Math.cos(toRadians(p.lon - uLon));
             const bearing = (toDegrees(Math.atan2(y, x)) + 360) % 360;
-
             const diff = Math.abs((bearing - heading + 540) % 360 - 180);
-
-            if (diff < minimaDistanciaAngular) {
-              puebloDetectado = p;
-              p.dist = calcDist(uLat, uLon, p.lat, p.lon);
-            }
+            const dist = calcDist(uLat, uLon, p.lat, p.lon);
+            
+            return { ...p, diff, dist };
           });
 
-          if (puebloDetectado) {
-            display.innerText = puebloDetectado.name;
-            display.classList.add('visible');
-            distDisplay.innerText = puebloDetectado.dist.toFixed(1) + " KM EN ESTA DIRECCIÓN";
-            distDisplay.classList.add('visible');
-            // Vibración suave al detectar
-            if (!display.dataset.last || display.dataset.last !== puebloDetectado.name) {
-                window.navigator.vibrate(50);
-                display.dataset.last = puebloDetectado.name;
-            }
-          } else {
-            display.classList.remove('visible');
-            distDisplay.classList.remove('visible');
-            display.dataset.last = "";
-          }
+          // FILTRAR: Solo los que están en un cono de visión de 30 grados (15 a cada lado)
+          // Y luego ORDENAR por distancia para mostrar los 5 más cercanos en esa dirección
+          const filtrados = listadoConAngulo
+            .filter(p => p.diff < 15)
+            .sort((a, b) => a.dist - b.dist)
+            .slice(0, 5);
+
+          renderUI(filtrados);
         });
       }
 
-      // Utilidades matemáticas
+      function renderUI(pueblosVisibles) {
+        // Solo actualizar si hay cambios para evitar parpadeos
+        container.innerHTML = '';
+        
+        if (pueblosVisibles.length > 0) {
+          pueblosVisibles.forEach((p, index) => {
+            const card = document.createElement('div');
+            card.className = 'town-card visible';
+            card.style.transitionDelay = `${index * 0.05}s`;
+            
+            card.innerHTML = `
+              <div class="town-info">
+                <h2>${p.name}</h2>
+                <p>${p.tipo}</p>
+              </div>
+              <div class="distance-tag">${p.dist.toFixed(1)}<span style="font-size:12px">KM</span></div>
+            `;
+            container.appendChild(card);
+          });
+          // Vibración ligera cuando detecta el más cercano del grupo
+          if (pueblosVisibles[0].diff < 5) window.navigator.vibrate(10);
+        }
+      }
+
+      // Matemáticas
       function toRadians(d) { return d * Math.PI / 180; }
       function toDegrees(r) { return r * 180 / Math.PI; }
       function calcDist(l1, n1, l2, n2) {
