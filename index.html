@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover" />
-    <title>AR Geo Navigator - Large Text</title>
+    <title>AR Navigator Pro - Auto-Clear</title>
     <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
     <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar-nft.js"></script>
     
@@ -20,7 +20,7 @@
         background-color: #000; 
       }
       
-      /* Buscador Superior Pegado - Textos más grandes */
+      /* Buscador Superior Sticky */
       .ui-top { 
         position: fixed; 
         top: 0; 
@@ -50,7 +50,7 @@
         border: none; 
         color: white; 
         padding: 12px; 
-        font-size: 20px; /* Aumentado de 17px */
+        font-size: 20px; 
         font-weight: 500;
         outline: none; 
       }
@@ -62,10 +62,10 @@
         border-radius: 12px; 
         padding: 0 25px; 
         font-weight: 800; 
-        font-size: 18px; /* Aumentado */
+        font-size: 18px; 
       }
 
-      /* Guía Central (Flecha) */
+      /* Flecha Guía */
       .ui-middle {
         position: fixed;
         bottom: calc(160px + var(--safe-bottom));
@@ -76,13 +76,13 @@
       }
 
       #arrow-svg { 
-        width: 130px; /* Un poco más grande para acompañar el texto */
+        width: 130px; 
         height: 130px; 
         will-change: transform;
         transition: transform 0.05s linear;
       }
 
-      /* Panel de Coordenadas Inferior - Textos más grandes */
+      /* Panel de Coordenadas Inferior */
       .ui-bottom {
         position: fixed;
         bottom: 0;
@@ -104,26 +104,25 @@
         width: 92%;
         display: flex;
         justify-content: space-between;
-        font-size: 14px; /* Aumentado de 11px */
+        font-size: 14px; 
         font-weight: 600;
         color: #ccc;
-        letter-spacing: 0.5px;
       }
 
       .coord-val { 
         color: #00D2FF; 
         font-family: monospace; 
-        font-size: 16px; /* Aumentado de 12px */
+        font-size: 16px; 
         font-weight: bold;
       }
 
       .dist-badge {
         background: #34C759;
         color: white;
-        padding: 8px 25px; /* Más acolchado */
+        padding: 8px 25px; 
         border-radius: 15px;
         font-weight: 900;
-        font-size: 22px; /* Aumentado notablemente para legibilidad rápida */
+        font-size: 22px; 
         margin-top: 8px;
         box-shadow: 0 4px 15px rgba(52, 199, 89, 0.4);
       }
@@ -133,7 +132,7 @@
   <body>
     <div class="ui-top">
       <div class="search-box">
-        <input type="text" id="placeName" placeholder="Escribe un lugar..." spellcheck="false">
+        <input type="text" id="placeName" placeholder="Escribe un lugar..." onfocus="this.value=''" spellcheck="false">
         <button onclick="buscarLugar()">IR</button>
       </div>
     </div>
@@ -220,12 +219,12 @@
         let scale = 1, color = "#888";
 
         if (error < 30) {
-          scale = error < 10 ? 1.4 : 1.2; // Escalado más agresivo
+          scale = error < 10 ? 1.4 : 1.2;
           color = error < 10 ? "#00D2FF" : "#34C759";
           if (error < 5) window.navigator.vibrate(20);
         }
 
-        arrow.style.transform = `rotate(${rotation}deg) scale(${scale})`;
+        arrow.style.transform = `rotate(${rotation}deg) scale(${scale}) translateZ(0)`;
         arrowPath.setAttribute('fill', color);
       }
 
@@ -233,15 +232,12 @@
         navigator.geolocation.watchPosition((pos) => {
           const uLat = pos.coords.latitude;
           const uLon = pos.coords.longitude;
-          
           myCoordsText.innerText = `${uLat.toFixed(5)}, ${uLon.toFixed(5)}`;
-
           if(destLat) {
             const y = Math.sin(toRadians(destLon - uLon)) * Math.cos(toRadians(destLat));
             const x = Math.cos(toRadians(uLat)) * Math.sin(toRadians(destLat)) -
                       Math.sin(toRadians(uLat)) * Math.cos(toRadians(destLat)) * Math.cos(toRadians(destLon - uLon));
             currentBearing = (toDegrees(Math.atan2(y, x)) + 360) % 360;
-            
             const d = calcDist(uLat, uLon, destLat, destLon);
             distBadge.innerText = d > 1 ? `${d.toFixed(1)} KM` : `${(d*1000).toFixed(0)} METROS`;
           }
