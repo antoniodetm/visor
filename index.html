@@ -3,7 +3,7 @@
   <head>
     <meta charset="utf-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no, viewport-fit=cover" />
-    <title>AR Geo Navigator - iPhone Optimized</title>
+    <title>AR Geo Navigator - Large Text</title>
     <script src="https://aframe.io/releases/1.3.0/aframe.min.js"></script>
     <script src="https://raw.githack.com/AR-js-org/AR.js/master/aframe/build/aframe-ar-nft.js"></script>
     
@@ -20,28 +20,28 @@
         background-color: #000; 
       }
       
-      /* Buscador Superior Pegado */
+      /* Buscador Superior Pegado - Textos más grandes */
       .ui-top { 
         position: fixed; 
         top: 0; 
         left: 0;
         right: 0;
         z-index: 1000; 
-        background: rgba(0, 0, 0, 0.6);
+        background: rgba(0, 0, 0, 0.7);
         backdrop-filter: blur(12px);
         padding-top: var(--safe-top);
-        padding-bottom: 10px;
+        padding-bottom: 15px;
         display: flex;
         justify-content: center;
-        border-bottom: 1px solid rgba(255,255,255,0.1);
+        border-bottom: 1px solid rgba(255,255,255,0.2);
       }
       
       .search-box { 
         display: flex; 
-        width: 92%;
-        background: rgba(255, 255, 255, 0.1); 
-        padding: 5px; 
-        border-radius: 14px; 
+        width: 94%;
+        background: rgba(255, 255, 255, 0.15); 
+        padding: 8px; 
+        border-radius: 16px; 
       }
       
       input { 
@@ -49,8 +49,9 @@
         background: transparent; 
         border: none; 
         color: white; 
-        padding: 10px; 
-        font-size: 17px; 
+        padding: 12px; 
+        font-size: 20px; /* Aumentado de 17px */
+        font-weight: 500;
         outline: none; 
       }
 
@@ -58,15 +59,16 @@
         background: #007AFF; 
         color: white; 
         border: none; 
-        border-radius: 10px; 
-        padding: 0 15px; 
-        font-weight: 600; 
+        border-radius: 12px; 
+        padding: 0 25px; 
+        font-weight: 800; 
+        font-size: 18px; /* Aumentado */
       }
 
       /* Guía Central (Flecha) */
       .ui-middle {
         position: fixed;
-        bottom: calc(120px + var(--safe-bottom));
+        bottom: calc(160px + var(--safe-bottom));
         left: 50%;
         transform: translateX(-50%);
         z-index: 900;
@@ -74,48 +76,56 @@
       }
 
       #arrow-svg { 
-        width: 100px; 
-        height: 100px; 
+        width: 130px; /* Un poco más grande para acompañar el texto */
+        height: 130px; 
         will-change: transform;
         transition: transform 0.05s linear;
       }
 
-      /* Panel de Coordenadas Inferior */
+      /* Panel de Coordenadas Inferior - Textos más grandes */
       .ui-bottom {
         position: fixed;
         bottom: 0;
         left: 0;
         right: 0;
         z-index: 1000;
-        background: rgba(0, 0, 0, 0.7);
-        backdrop-filter: blur(15px);
-        padding-bottom: calc(10px + var(--safe-bottom));
-        padding-top: 10px;
-        border-top: 1px solid rgba(255,255,255,0.1);
+        background: rgba(0, 0, 0, 0.85);
+        backdrop-filter: blur(20px);
+        padding-bottom: calc(15px + var(--safe-bottom));
+        padding-top: 15px;
+        border-top: 2px solid rgba(255,255,255,0.1);
         display: flex;
         flex-direction: column;
         align-items: center;
-        gap: 5px;
+        gap: 8px;
       }
 
       .coord-row {
-        width: 90%;
+        width: 92%;
         display: flex;
         justify-content: space-between;
-        font-size: 11px;
-        color: #aaa;
+        font-size: 14px; /* Aumentado de 11px */
+        font-weight: 600;
+        color: #ccc;
         letter-spacing: 0.5px;
       }
 
-      .coord-val { color: #00D2FF; font-family: monospace; font-size: 12px; }
+      .coord-val { 
+        color: #00D2FF; 
+        font-family: monospace; 
+        font-size: 16px; /* Aumentado de 12px */
+        font-weight: bold;
+      }
+
       .dist-badge {
         background: #34C759;
         color: white;
-        padding: 4px 12px;
-        border-radius: 10px;
-        font-weight: bold;
-        font-size: 14px;
-        margin-top: 5px;
+        padding: 8px 25px; /* Más acolchado */
+        border-radius: 15px;
+        font-weight: 900;
+        font-size: 22px; /* Aumentado notablemente para legibilidad rápida */
+        margin-top: 8px;
+        box-shadow: 0 4px 15px rgba(52, 199, 89, 0.4);
       }
     </style>
   </head>
@@ -123,7 +133,7 @@
   <body>
     <div class="ui-top">
       <div class="search-box">
-        <input type="text" id="placeName" placeholder="Buscar lugar..." spellcheck="false">
+        <input type="text" id="placeName" placeholder="Escribe un lugar..." spellcheck="false">
         <button onclick="buscarLugar()">IR</button>
       </div>
     </div>
@@ -137,7 +147,7 @@
     <div class="ui-bottom">
       <div class="coord-row">
         <span>MI UBICACIÓN:</span>
-        <span id="my-coords" class="coord-val">ESPERANDO GPS...</span>
+        <span id="my-coords" class="coord-val">BUSCANDO...</span>
       </div>
       <div class="coord-row">
         <span>DESTINO:</span>
@@ -152,8 +162,8 @@
       arjs="sourceType: webcam; debugUIEnabled: false; videoTexture: true;"
     >
       <a-entity id="target-anchor">
-        <a-sphere radius="10" color="#00D2FF" opacity="0.6" gps-entity-place="latitude: 0; longitude: 0;"></a-sphere>
-        <a-text id="marker-label" value="" look-at="[gps-camera]" scale="60 60 60" position="0 20 0" align="center"></a-text>
+        <a-sphere radius="12" color="#00D2FF" opacity="0.6" gps-entity-place="latitude: 0; longitude: 0;"></a-sphere>
+        <a-text id="marker-label" value="" look-at="[gps-camera]" scale="80 80 80" position="0 25 0" align="center" font="roboto" color="#00D2FF"></a-text>
       </a-entity>
       <a-camera gps-camera rotation-reader></a-camera>
     </a-scene>
@@ -180,7 +190,7 @@
             
             destCoordsText.innerText = `${destLat.toFixed(5)}, ${destLon.toFixed(5)}`;
             document.getElementById('target-anchor').children[0].setAttribute('gps-entity-place', `latitude: ${destLat}; longitude: ${destLon};`);
-            document.getElementById('marker-label').setAttribute('value', data[0].display_name.split(',')[0]);
+            document.getElementById('marker-label').setAttribute('value', data[0].display_name.split(',')[0].toUpperCase());
             
             document.getElementById('guideUI').style.visibility = 'visible';
             distBadge.style.display = 'block';
@@ -210,9 +220,9 @@
         let scale = 1, color = "#888";
 
         if (error < 30) {
-          scale = error < 10 ? 1.3 : 1.1;
+          scale = error < 10 ? 1.4 : 1.2; // Escalado más agresivo
           color = error < 10 ? "#00D2FF" : "#34C759";
-          if (error < 5) window.navigator.vibrate(15);
+          if (error < 5) window.navigator.vibrate(20);
         }
 
         arrow.style.transform = `rotate(${rotation}deg) scale(${scale})`;
@@ -233,7 +243,7 @@
             currentBearing = (toDegrees(Math.atan2(y, x)) + 360) % 360;
             
             const d = calcDist(uLat, uLon, destLat, destLon);
-            distBadge.innerText = d > 1 ? `${d.toFixed(1)} KM` : `${(d*1000).toFixed(0)} M`;
+            distBadge.innerText = d > 1 ? `${d.toFixed(1)} KM` : `${(d*1000).toFixed(0)} METROS`;
           }
         }, null, { enableHighAccuracy: true });
       }
